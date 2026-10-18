@@ -4,23 +4,24 @@ A browser version of the Take 5 / 6 nimmt! card game. It has solo play against b
 
 ## Play locally
 
-Serve this folder over HTTP (the page uses ES modules, so opening `index.html` directly as a file will not work):
+Install the dependencies and start the Vite development server:
 
 ```sh
-python3 -m http.server 4173
+npm install
+npm run dev
 ```
 
-Then open <http://localhost:4173>.
+Then open the local URL printed by Vite (usually <http://localhost:5173>). The game buttons and icons use React Native Web.
 
 ## Play online with friends
 
-Publish these static files to any HTTPS static host, then open the hosted page, choose **Host online**, and share the invite link. Friends open the link, choose a name, and join the room. The host starts the game after at least one other player has joined. The game uses PeerJS for WebRTC signaling and sends game data directly between the host and players. An internet connection and a host browser tab that stays open are required. No game account or application server is required.
+Publish the built `dist/` folder to a static HTTPS host, then open the hosted page, choose **Host online**, and share the invite link. Friends open the link, choose a name, and join the room. The host can start alone; a bot joins automatically if no other player has joined. The game uses PeerJS for WebRTC signaling and sends game data directly between the host and players. An internet connection and a host browser tab that stays open are required. No game account or application server is required.
 
 Online rooms currently support up to 10 total players, including optional bots. Room invites use a 4-digit code. The host owns the game state; each player only receives their own hand. The room code is not a password, so share it only with the people you want at the table.
 
 ## Deploy on Render
 
-This is a static site and needs no build step. The included `render.yaml` configures a Render Static Site that publishes the repository root. Push this folder to a GitHub, GitLab, or Bitbucket repository, then create a new Blueprint on Render from that repo. Render will publish the site and redeploy on pushes to the connected branch.
+The included `render.yaml` configures a Render Static Site. Render installs the locked npm dependencies, builds with Vite, copies the card assets, and publishes `dist/`. Push to the connected GitHub branch and Render will redeploy automatically.
 
 ## Rules in this version
 
