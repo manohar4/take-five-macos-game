@@ -1,0 +1,6 @@
+services:
+  - type: web
+    name: take-five-friends-game
+    runtime: static
+    buildCommand: echo "No build required"
+    staticPublishPath: .

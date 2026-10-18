@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="theme-color" content="#f5f2e9" />
+  <meta name="description" content="Take 5! — a spirited card game of clever choices and not-so-clever cows." />
+  <title>Take 5! — The card game</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600;700;800&family=Paytone+One&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="page-shell">
+    <header class="topbar">
+      <a class="brand" href="#" id="homeLink" aria-label="Take 5 home"><span class="brand-mark">5</span><span>take five<span class="brand-dot">.</span></span></a>
+      <div class="topbar-right"><span class="top-note"><span class="online-dot"></span> the table is open</span><button class="icon-button" id="rulesButton" aria-label="How to play" title="How to play">?</button></div>
+    </header>
+
+    <main id="app" aria-live="polite"></main>
+
+    <footer class="footer"><span>Made for good friends & bad luck.</span><span>TAKE 5! <i>·</i> A game of bullheads</span></footer>
+  </div>
+  <dialog id="rulesDialog" class="rules-dialog">
+    <form method="dialog"><button class="dialog-close" aria-label="Close">×</button></form>
+    <div class="eyebrow">THE VERY SHORT VERSION</div><h2>Keep your head.<br />Avoid the bulls.</h2>
+    <ol class="rule-list">
+      <li><b>Pick a card.</b> Everyone chooses one from their hand. Cards turn over together.</li>
+      <li><b>Find its row.</b> Your card goes after the closest lower number. No lower number? Take a whole row.</li>
+      <li><b>Five is the limit.</b> Play the sixth card in a row and collect the first five bullheads. Your card starts a fresh row.</li>
+      <li><b>Fewest bullheads wins.</b> Cards ending in 5 have 2, cards ending in 0 have 3, matching doubles have 5, and 55 has 7 bullheads.</li>
+    </ol>
+    <p class="rules-foot">A hand lasts 10 turns. The game ends when someone reaches 66 bullheads.</p>
+  </dialog>
+  <script type="module" src="app.js"></script>
+</body>
+</html>
