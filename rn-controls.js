@@ -33,8 +33,14 @@ function nativeProps(element, key) {
 
 function preserveCssClass(props) {
   const names = props.className?.split(/\s+/).filter(Boolean) || [];
+  const dataAttributes = Object.entries(props).filter(([name]) => name.startsWith('data-'));
   delete props.className;
-  if (names.length) props.ref = node => { if (node) node.classList.add(...names); };
+  for (const [name] of dataAttributes) delete props[name];
+  if (names.length || dataAttributes.length) props.ref = node => {
+    if (!node) return;
+    if (names.length) node.classList.add(...names);
+    for (const [name, value] of dataAttributes) node.setAttribute(name, value);
+  };
   return props;
 }
 
@@ -59,6 +65,7 @@ function toNativeNode(node, key = 'child') {
 function toNativeButton(button) {
   const props = nativeProps(button);
   const names = props.className?.split(/\s+/).filter(Boolean) || [];
+  const dataAttributes = Object.entries(props).filter(([name]) => name.startsWith('data-'));
   const originalStyle = button.getAttribute('style') || '';
   const host = document.createElement('span');
   host.className = 'rn-control-root';
@@ -71,8 +78,14 @@ function toNativeButton(button) {
   delete props.style;
   delete props.disabled;
   delete props.className;
-  props.ref = node => { if (node && names.length) node.classList.add(...names); };
-  props.accessibilityRole = props.role || 'button';
+  for (const [name] of dataAttributes) delete props[name];
+  props.ref = node => {
+    if (!node) return;
+    if (names.length) node.classList.add(...names);
+    for (const [name, value] of dataAttributes) node.setAttribute(name, value);
+  };
+  props.role = props.role || 'button';
+  props.accessibilityRole = props.role;
   props.disabled = disabled;
   props.onPress = () => host.firstElementChild?.dispatchEvent(new CustomEvent('rnpress', { bubbles: true }));
   flushSync(() => root.render(React.createElement(Pressable, props, ...content)));
