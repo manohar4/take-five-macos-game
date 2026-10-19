@@ -62,7 +62,7 @@ function renderTopbar() {
   const menuItems = [];
   if (online && state.roomId) {
     menuItems.push(`<button class="menu-action" data-menu-action="copy-invite"><span class="menu-action-icon">↗</span><span>Copy invite link</span></button>`);
-    menuItems.push(`<button class="menu-action" data-menu-action="copy-code"><span class="menu-action-icon">#</span><span>Copy room code <b>${escapeHtml(state.roomId)}</b></span></button>`);
+    menuItems.push(`<button class="menu-action" data-menu-action="copy-code"><span class="menu-action-icon">#</span><span>Copy room code</span></button>`);
   }
   if (state.screen === 'lobby' && state.host) menuItems.push(`<button class="menu-action" data-menu-action="start-game"><span class="menu-action-icon">▶</span><span>Start game</span></button>`);
   if (state.screen === 'game' && (!online || state.host)) menuItems.push(`<button class="menu-action" data-menu-action="new-game"><span class="menu-action-icon">⟳</span><span>Start new game</span></button>`);
@@ -70,7 +70,7 @@ function renderTopbar() {
   menuItems.push(`<button class="menu-action" data-menu-action="rules"><span class="menu-action-icon">?</span><span>How to play</span></button>`);
   if (online) menuItems.push(`<button class="menu-action is-danger" data-menu-action="leave"><span class="menu-action-icon">↩</span><span>Leave game</span></button>`);
   else if (state.screen === 'game' || state.screen === 'result') menuItems.push(`<button class="menu-action is-danger" data-menu-action="leave"><span class="menu-action-icon">↩</span><span>Leave game</span></button>`);
-  renderMarkup(right, `<div class="menu-shell"><button class="menu-trigger" id="gameMenuToggle" aria-label="Game menu" aria-haspopup="menu" aria-expanded="false" title="Game menu"><span class="menu-icon"><i></i><i></i><i></i></span></button><div class="game-menu-panel is-hidden" id="gameMenuPanel" role="menu">${menuItems.join('')}</div></div>`);
+  renderMarkup(right, `<div class="menu-shell"><button class="menu-trigger" id="gameMenuToggle" aria-label="Game menu" aria-haspopup="menu" aria-expanded="false" title="Game menu"><span class="menu-icon" aria-hidden="true"></span></button><div class="game-menu-panel is-hidden" id="gameMenuPanel" role="menu">${menuItems.join('')}</div></div>`);
   bindPress('#gameMenuToggle', (_, button) => {
     const panel = document.querySelector('#gameMenuPanel');
     const open = button.getAttribute('aria-expanded') !== 'true';

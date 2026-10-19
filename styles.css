@@ -344,8 +344,9 @@ body.match-mode{background:#124d2b;overflow:hidden;color:white}.match-mode .page
 .menu-shell{position:relative}
 .menu-trigger,.icon-button{width:40px;height:40px;display:flex;align-items:center;justify-content:center;border:1px solid #ffffff85;border-radius:50%;background:#ffffff20;color:white;box-shadow:0 2px 8px #173c3150;backdrop-filter:blur(8px);cursor:pointer;transition:transform .16s,background .16s}
 .menu-trigger:hover,.icon-button:hover{transform:translateY(-1px);background:#ffffff35}
-.menu-icon{width:16px;height:14px;display:flex;flex-direction:column;justify-content:space-between}
-.menu-icon i{height:2px;width:16px;border-radius:2px;background:currentColor}
+.menu-trigger{position:relative}
+.menu-icon{display:none}
+.menu-trigger::before{content:"";display:block;width:16px;height:2px;border-radius:2px;background:currentColor;box-shadow:0 -5px currentColor,0 5px currentColor}
 .game-menu-panel{position:absolute;z-index:35;right:0;top:calc(100% + 9px);width:min(235px,calc(100vw - 28px));padding:7px;border:1px solid #ffffff7a;border-radius:15px;background:linear-gradient(145deg,#f7f5e9f7,#e1ead7f5);box-shadow:0 12px 32px #09271980;backdrop-filter:blur(16px)}
 .game-menu-panel[hidden]{display:none}
 .game-menu-panel.is-hidden{display:none}
