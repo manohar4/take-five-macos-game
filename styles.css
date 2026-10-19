@@ -648,3 +648,8 @@ body.home-mode{min-height:100svh;overflow:hidden;background:#0e5731;color:#fff}
 .match-mode .row-total.bull-counter-badge .bull-icon{width:15px;height:12px}
 .match-mode .row-choice-penalty.bull-counter-badge{padding:5px 8px!important}
 @media(max-width:700px){.match-mode .header-player-score.bull-counter-badge{gap:3px;padding:3px 5px}.match-mode .header-player-score.bull-counter-badge>strong{font-size:9px}.match-mode .header-player-score.bull-counter-badge .bull-icon{width:12px;height:10px}.match-mode .row-total.bull-counter-badge{gap:4px;padding:3px 6px}.match-mode .row-total.bull-counter-badge>strong{font-size:11px}.match-mode .row-total.bull-counter-badge .bull-icon{width:13px;height:11px}}
+/* Replace the decorative bull watermark with the row's readable bull counter. */
+.match-mode .row-lane::after{content:none}
+.match-mode .row-label{position:static}
+.match-mode .row-total.bull-counter-badge{position:absolute;z-index:2;top:50%;right:4%;transform:translateY(-50%);margin:0;min-width:42px;min-height:28px;padding:5px 8px;box-shadow:0 2px 5px #082c1c50,inset 0 1px #fff9d9}
+@media(max-width:700px){.match-mode .row-total.bull-counter-badge{right:4%;min-width:38px;min-height:25px;padding:4px 6px}}
