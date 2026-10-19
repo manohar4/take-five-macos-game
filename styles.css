@@ -659,3 +659,12 @@ body.home-mode{min-height:100svh;overflow:hidden;background:#0e5731;color:#fff}
 .match-mode .row-cards{position:absolute;z-index:1;inset:0;width:auto;height:100%;min-height:0;display:flex;align-items:center;justify-content:flex-start;gap:4px;padding:0 10px;overflow-x:auto;overflow-y:hidden}
 .match-mode .row-total.bull-counter-badge{top:50%;right:4%;}
 @media(max-width:700px){.match-mode .row-label{top:6px;left:9px;right:9px}.match-mode .row-cards{padding:0 8px;gap:3px}}
+.match-mode .reaction-dock{display:flex;align-items:center;gap:4px;width:max-content;max-width:100%;margin-top:9px;padding:5px;border:1px solid #ffffff42;border-radius:999px;background:#092f22b8;box-shadow:0 3px 10px #061d1570;backdrop-filter:blur(8px)}
+.match-mode .reaction-button{display:grid;place-items:center;flex:0 0 29px;width:29px;height:29px;padding:0;border:1px solid #ffffff30;border-radius:50%;background:#ffffff18;color:white;font:17px/1 var(--sans);cursor:pointer;touch-action:manipulation;transition:transform .14s,background .14s,box-shadow .14s}
+.match-mode .reaction-button:hover,.match-mode .reaction-button:focus-visible{transform:translateY(-2px) scale(1.08);background:#fff7c9;box-shadow:0 2px 8px #061d1570;outline:none}
+.room-reaction-float{position:fixed;z-index:90;display:flex;flex-direction:column;align-items:center;gap:2px;transform:translate(-50%,0);pointer-events:none;filter:drop-shadow(0 4px 7px #08271975);animation:room-reaction-rise 1.6s cubic-bezier(.2,.72,.25,1) both}
+.room-reaction-float>span{font:38px/1 var(--sans)}
+.room-reaction-float>small{max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:2px 7px;border:1px solid #ffffff55;border-radius:999px;background:#0c402dcc;color:#fff8d8;font:8px/1.2 var(--mono);backdrop-filter:blur(6px)}
+@keyframes room-reaction-rise{0%{opacity:0;transform:translate(-50%,5px) scale(.65)}14%{opacity:1;transform:translate(-50%,0) scale(1.12)}32%{transform:translate(-50%,-4px) scale(1)}100%{opacity:0;transform:translate(-50%,-66px) scale(.9)}}
+@media(max-width:700px){.match-mode .reaction-dock{grid-column:1/-1;grid-row:3;gap:3px;margin-top:5px;padding:4px}.match-mode .reaction-button{flex-basis:28px;width:28px;height:28px;font-size:16px}}
+@media(prefers-reduced-motion:reduce){.room-reaction-float{animation-duration:.2s}.match-mode .reaction-button{transition:none}}
