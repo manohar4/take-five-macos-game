@@ -653,3 +653,9 @@ body.home-mode{min-height:100svh;overflow:hidden;background:#0e5731;color:#fff}
 .match-mode .row-label{position:static}
 .match-mode .row-total.bull-counter-badge{position:absolute;z-index:2;top:50%;right:4%;transform:translateY(-50%);margin:0;min-width:42px;min-height:28px;padding:5px 8px;box-shadow:0 2px 5px #082c1c50,inset 0 1px #fff9d9}
 @media(max-width:700px){.match-mode .row-total.bull-counter-badge{right:4%;min-width:38px;min-height:25px;padding:4px 6px}}
+/* Center the cards in each full-height row lane, with its label and count floating above. */
+.match-mode .row-lane{position:relative}
+.match-mode .row-label{position:absolute;z-index:3;top:8px;left:12px;right:12px;margin:0;pointer-events:none}
+.match-mode .row-cards{position:absolute;z-index:1;inset:0;width:auto;height:100%;min-height:0;display:flex;align-items:center;justify-content:flex-start;gap:4px;padding:0 10px;overflow-x:auto;overflow-y:hidden}
+.match-mode .row-total.bull-counter-badge{top:50%;right:4%;}
+@media(max-width:700px){.match-mode .row-label{top:6px;left:9px;right:9px}.match-mode .row-cards{padding:0 8px;gap:3px}}
