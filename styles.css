@@ -553,6 +553,9 @@ body.home-mode{min-height:100svh;overflow:hidden;background:#0e5731;color:#fff}
   .match-mode .lobby-wait{width:100%;font-size:9px}
   .match-mode .lobby-mode .tabletop{padding:4px 0}
 }
+
+/* Keep the two home-screen mode labels centered in their full touch targets. */
+.home-mode .setup-tab{display:flex;align-items:center;justify-content:center;text-align:center}
 @media(max-width:420px){
   .match-mode .topbar{padding:0 7px;gap:4px}
   .match-mode .header-player{gap:4px;padding:4px 6px 4px 4px}
