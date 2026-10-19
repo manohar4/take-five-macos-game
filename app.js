@@ -34,7 +34,7 @@ function bindPress(target, handler) {
 function bulls(n) { return n === 55 ? 7 : n % 11 === 0 ? 5 : n % 10 === 0 ? 3 : n % 5 === 0 ? 2 : 1; }
 function cardClass(n) { return n === 55 ? 'double' : n % 11 === 0 ? 'double' : n % 10 === 0 ? 'tens' : n % 5 === 0 ? 'multiple-5' : ''; }
 function cardTone(n) { return ({1:'one-bull',2:'two-bulls',3:'three-bulls',5:'five-bulls',7:'seven-bulls'})[bulls(n)]; }
-function bullIconMarkup() { return '<span class="bull-icon" aria-hidden="true"><i class="bull-head"></i></span>'; }
+function bullIconMarkup() { return '<span class="bull-icon" aria-hidden="true"><img class="bull-icon-art" src="assets/bullhead.svg" alt="" draggable="false"></span>'; }
 function bullMarks(n) { return `<span class="bull-marks" aria-label="${bulls(n)} bullheads">${Array.from({length:bulls(n)},()=>'<i class="bull-head" aria-hidden="true"></i>').join('')}</span>`; }
 function cardFace(n, extraClass='') { const tone=cardTone(n), value=escapeHtml(n), digits=String(n).length; return `<span class="card-face ${extraClass} tone-${tone} value-${digits}-digits" aria-hidden="true"><img class="card-art" src="assets/cards/card-${tone}.png" alt="" draggable="false"><span class="card-corner top-left">${value}</span><span class="card-corner top-right">${value}</span>${bullMarks(n)}<span class="card-value-outline">${value}</span><span class="card-value">${value}</span><span class="card-bottom-meta"><span class="card-corner bottom-left">${value}</span>${bullMarks(n)}<span class="card-corner bottom-right">${value}</span></span></span>`; }
 function playerAvatar(player,index) { return player.human ? ['🧑🏻','👩🏽','🧔🏼','👩🏻','🧑🏾','👩🏼','🧑🏽','👨🏾','👩🏻','🧑🏼'][index%10] : ['🦊','🐻','🐸','🐼','🐯','🐵','🐰','🦝','🦁'][Math.max(0,index-1)%9]; }

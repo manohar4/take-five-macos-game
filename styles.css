@@ -595,34 +595,23 @@ body.home-mode{min-height:100svh;overflow:hidden;background:#0e5731;color:#fff}
 
 /* Keep bullhead counts recognizable and reveal selected cards during row choice. */
 .bull-icon{display:inline-flex;flex:0 0 auto;align-items:center;justify-content:center;width:12px;height:10px}
-.bull-icon .bull-head{width:9px;height:7px;background:currentColor;box-shadow:inset 0 -1px #8e6825}
-.bull-icon .bull-head::before{width:12px;height:5px;left:50%;top:-3px;transform:translateX(-50%);border-top:2px solid currentColor}
-.match-mode .bull-icon{display:inline-flex;flex:0 0 auto;align-items:center;justify-content:center;width:12px;height:10px;color:#ffd96d}
-.match-mode .bull-icon .bull-head{width:9px;height:7px;background:currentColor;box-shadow:inset 0 -1px #8e6825}
-.match-mode .bull-icon .bull-head::before{width:12px;height:5px;left:50%;top:-3px;transform:translateX(-50%);border-top:2px solid currentColor}
+.bull-icon-art{display:block;width:100%;height:100%;object-fit:contain}
+.match-mode .bull-icon{width:12px;height:10px}
 .match-mode .header-player-score{display:flex;align-items:center;justify-content:center;gap:3px}
-.match-mode .header-player-score .bull-icon{width:8px;height:7px;color:#657b50}
-.match-mode .header-player-score .bull-icon .bull-head{width:7px;height:5px}
-.match-mode .header-player-score .bull-icon .bull-head::before{width:9px;height:4px;top:-2px;border-top-width:1.5px}
+.match-mode .header-player-score .bull-icon{width:11px;height:9px}
 .match-mode .my-score{gap:5px}
-.match-mode .my-score .bull-icon{width:10px;height:9px;color:#4e632c}
+.match-mode .my-score .bull-icon{width:13px;height:11px}
 .match-mode .row-label{justify-content:space-between;align-items:center}
 .match-mode .row-total{display:flex;align-items:center;justify-content:flex-end;gap:6px;margin-left:auto;font:700 clamp(13px,1.6vw,20px) var(--sans);color:#fff5c6}
 .match-mode .row-total>strong{font:inherit}
-.match-mode .row-total .bull-icon{width:13px;height:11px;color:#ffdc78}
-.match-mode .row-total .bull-icon .bull-head{width:10px;height:8px}
-.match-mode .row-total .bull-icon .bull-head::before{width:13px;height:5px;top:-3px;border-top-width:2px}
-.match-mode .row-choice-option-top>strong .bull-icon{display:inline-flex;vertical-align:middle;width:9px;height:8px;margin-left:2px;color:#75601f}
-.match-mode .row-choice-option-top>strong .bull-head{width:7px;height:5px}
-.match-mode .row-choice-option-top>strong .bull-head::before{width:9px;height:4px;top:-2px;border-top-width:1.5px}
+.match-mode .row-total .bull-icon{width:16px;height:14px}
+.match-mode .row-choice-option-top>strong .bull-icon{display:inline-flex;vertical-align:middle;width:14px;height:12px;margin-left:3px}
 .match-mode .stage-reveal-card{position:relative;display:flex;flex:0 0 clamp(40px,5vw,58px);flex-direction:column;align-items:center;gap:3px;width:clamp(40px,5vw,58px)}
 .match-mode .stage-reveal-card>.card-face{position:relative;display:block;width:100%;height:auto;aspect-ratio:2/3;overflow:hidden;border:1px solid #fff4d1;border-radius:7px;box-shadow:0 3px 8px #061b1c85,inset 0 0 0 2px #ffffff26}
 .match-mode .stage-reveal-card>small{max-width:66px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#f4f4de;font:8px var(--mono);text-shadow:0 1px 3px #061d11}
-.home-mode .scene-card .bull-icon{margin-top:7px;color:#bb503d}
-.home-mode .scene-card .bull-head{width:9px;height:7px;background:currentColor}
-.home-mode .scene-card .bull-head::before{width:12px;height:5px;top:-3px;border-top:2px solid currentColor}
-.match-mode .back-emblem .bull-icon{position:absolute;top:12%;left:50%;transform:translateX(-50%);color:#f8e49a}
+.home-mode .scene-card .bull-icon{width:16px;height:13px;margin-top:7px}
+.match-mode .back-emblem .bull-icon{position:absolute;top:12%;left:50%;width:18px;height:15px;transform:translateX(-50%)}
 .match-mode .final-score>b{display:inline-flex;align-items:center;gap:5px}
-.match-mode .final-score .bull-icon{color:#ffe28a}
+.match-mode .final-score .bull-icon{width:17px;height:14px}
 @media(max-width:1100px) and (orientation:portrait){.match-mode .stage-reveal-card{flex-basis:clamp(38px,7vw,52px);width:clamp(38px,7vw,52px)}.match-mode .stage-reveal-card>small{max-width:54px;font-size:7px}}
 @media(max-width:600px) and (orientation:portrait){.match-mode .stage-reveal-card{flex-basis:clamp(32px,9vw,40px);width:clamp(32px,9vw,40px)}.match-mode .stage-reveal-card>small{max-width:43px;font-size:6px}.match-mode .row-total{font-size:12px}}
