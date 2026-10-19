@@ -4,13 +4,15 @@ import { isSoundEnabled, playSound, setAmbient, toggleSound, unlockAudio } from 
 const app = document.querySelector('#app');
 const rulesDialog = document.querySelector('#rulesDialog');
 const params = new URLSearchParams(location.search);
+const hostSaveKey = 'take5-host-save';
+const guestSessionKey = 'take5-guest-session';
 const state = {
   screen: 'home', mode: 'online', tab: 'rooms', name: localStorage.getItem('take5-name') || '',
   peer: null, host: false, connection: null, connections: new Map(), clientId: null,
   roomId: '', players: [], game: null, selected: null, busy: false, toastTimer: null,
   botCount: 3, roundFlashTimer: null, submittedTurn: false,
   animating: false, replay: null, replayKey: null, revealOrigins: {}, stageSeen: new Set(), stageTurnKey: null,
-  countdownTimer: null, countdownInterval: null, reactionCooldowns: new Map(), screenTransition: false
+  countdownTimer: null, countdownInterval: null, reconnectTimer: null, resumeToken: null, recoveringGuest: false, reactionCooldowns: new Map(), screenTransition: false
 };
 
 document.addEventListener('pointerdown', unlockAudio, { passive: true });
@@ -20,8 +22,14 @@ document.querySelector('#homeLink').addEventListener('click', e => { e.preventDe
 mountNativeControls(rulesDialog);
 bindPress('.dialog-close', () => rulesDialog.close());
 if (params.get('room')) { const invite=params.get('room'); state.tab = 'rooms'; state.roomPrefill = /^\d{4}$/.test(invite) ? invite : (invite.match(/^take5-(\d{4})$/)?.[1] || ''); }
-renderHome();
+const savedHostRoom=readStored(hostSaveKey);
+const savedGuestRoom=readStored(guestSessionKey);
+const resumeCode=state.roomPrefill || savedGuestRoom?.roomId || '';
+const shouldResumeGuest=!!savedGuestRoom&&(!state.roomPrefill||savedGuestRoom.roomId===state.roomPrefill);
+if(savedHostRoom&&(state.roomPrefill===savedHostRoom.roomId||(!state.roomPrefill&&!shouldResumeGuest))){renderHome();resumeHostRoom(savedHostRoom);}
+else {renderHome();if(resumeCode&&savedGuestRoom?.roomId===resumeCode){state.resumeToken=savedGuestRoom.token;state.recoveringGuest=true;joinRoom(resumeCode);}}
 
+function readStored(key){try{return JSON.parse(localStorage.getItem(key)||'null')}catch{return null}}
 function escapeHtml(value) { return String(value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function renderMarkup(container, markup) {
   const animate = state.screenTransition && !matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -249,20 +257,34 @@ function resolveTurn(game, chosenRowIndex) {
 
 async function getPeerLib(){return import('https://esm.sh/peerjs@1.5.5?bundle');}
 function randomRoomCode(){const values=new Uint16Array(1);crypto.getRandomValues(values);return String(values[0]%10000).padStart(4,'0');}
+function roomResumeToken(roomId){let session=readStored(guestSessionKey);if(session?.roomId!==roomId||!session.token){session={roomId,token:crypto.randomUUID?.()||`${Date.now()}-${Math.random().toString(36).slice(2)}`};localStorage.setItem(guestSessionKey,JSON.stringify(session));}state.resumeToken=session.token;return session.token;}
+function saveHostRoom(){if(!state.host||!state.roomId)return;try{localStorage.setItem(hostSaveKey,JSON.stringify({roomId:state.roomId,name:state.name,screen:state.screen,players:state.players,game:state.game}));}catch{say('Could not save a recovery copy of this room on this device.');}}
+function watchHostConnection(peer,conn){if(state.peer!==peer)return;conn.on('open',()=>{});conn.on('data',data=>hostMessage(conn,data));conn.on('close',()=>{if(state.peer!==peer)return;const p=state.players.find(x=>x.id===conn.peer);if(p)p.online=false;state.connections.delete(conn.peer);saveHostRoom();if(state.game?.phase==='choosing'){completeTurnIfReady();broadcast();}else if(state.screen==='lobby')renderLobby();});}
 async function hostRoom(){
   if(state.busy)return;state.busy=true;showError('Opening your room…');
   try{const {Peer}=await getPeerLib();let attempts=0;const openPeer=()=>{const code=randomRoomCode();const peer=new Peer(`take5-${code}`);state.peer=peer;state.host=true;
-    peer.on('open',id=>{if(state.peer!==peer)return;state.roomId=code;state.clientId=id;state.players=[{id,name:state.name,human:true,online:true,score:0,total:0,hand:[]}];state.screen='lobby';state.mode='online-host';state.busy=false;state.screenTransition=true;history.replaceState({},'',`?room=${encodeURIComponent(code)}`);renderLobby();});
-    peer.on('connection',conn=>{if(state.peer!==peer)return;conn.on('open',()=>{});conn.on('data',data=>hostMessage(conn,data));conn.on('close',()=>{const p=state.players.find(x=>x.id===conn.peer);if(p)p.online=false;state.connections.delete(conn.peer);if(state.game?.phase==='choosing'){completeTurnIfReady();broadcast();}else if(state.screen==='lobby')renderLobby();});});
+    peer.on('open',id=>{if(state.peer!==peer)return;localStorage.removeItem(guestSessionKey);state.roomId=code;state.clientId=id;state.players=[{id,name:state.name,human:true,online:true,score:0,total:0,hand:[]}];state.screen='lobby';state.mode='online-host';state.busy=false;state.screenTransition=true;history.replaceState({},'',`?room=${encodeURIComponent(code)}`);renderLobby();saveHostRoom();});
+    peer.on('connection',conn=>watchHostConnection(peer,conn));
     peer.on('error',err=>{if(state.peer!==peer)return;if(err.type==='unavailable-id'&&attempts<8){attempts++;peer.destroy();state.peer=null;setTimeout(openPeer,120);return;}state.busy=false;if(state.screen==='home')showError(err.type==='unavailable-id'?'Could not reserve a room code. Try again.':'Room connection failed. Check your internet and try again.');else say('Room connection hiccup.');});
   };openPeer();
   }catch(e){state.busy=false;showError('Online rooms need an internet connection. Please try again.');}
 }
+async function resumeHostRoom(saved){
+  if(!saved?.roomId||!/^\d{4}$/.test(saved.roomId))return renderHome();
+  state.busy=true;state.name=saved.name||state.name;showError('Restoring your room…');
+  try{const {Peer}=await getPeerLib();let attempts=0;const openPeer=()=>{const peer=new Peer(`take5-${saved.roomId}`);state.peer=peer;state.host=true;
+    peer.on('open',id=>{if(state.peer!==peer)return;setAmbient(false);state.roomId=saved.roomId;state.clientId=id;state.game=saved.game||null;state.players=state.game?.players||saved.players||[];if(state.game)state.players=state.game.players;state.mode='online-host';state.screen=state.game?(state.game.phase==='finished'?'result':'game'):'lobby';state.busy=false;state.screenTransition=true;state.selected=null;state.submittedTurn=false;state.animating=false;state.replay=null;state.replayKey=null;state.revealOrigins={};history.replaceState({},'',`?room=${encodeURIComponent(saved.roomId)}`);if(state.screen==='lobby')renderLobby();else if(state.screen==='result')renderResult();else{renderGame();if(state.game.phase==='countdown')startCountdown(state.game,true);}saveHostRoom();});
+    peer.on('connection',conn=>watchHostConnection(peer,conn));
+    peer.on('error',err=>{if(state.peer!==peer)return;if(err.type==='unavailable-id'&&attempts<25){attempts++;peer.destroy();state.peer=null;setTimeout(openPeer,Math.min(1800,180+attempts*120));return;}state.busy=false;if(attempts>=25){showError('This room is still active in another tab. Close that tab, then refresh to restore it.');}else{showError('Could not reconnect to your room. Refresh to try again.');}peer.destroy();state.peer=null;state.host=false;});
+  };openPeer();}catch{state.busy=false;state.host=false;showError('Could not restore the room. Check your connection and refresh to try again.');}
+}
 function hostMessage(conn,data){if(!data||typeof data!=='object')return;if(data.type==='hello'){
-    if(state.game){conn.send({type:'error',message:'This game is already in progress. Join the next room!'});conn.close();return;}
+    const token=typeof data.resumeToken==='string'?data.resumeToken.slice(0,100):'';
+    const player=state.players.find(p=>p.id===conn.peer||(token&&p.resumeToken===token));
+    if(player){const previousId=player.id;player.id=conn.peer;player.online=true;if(state.game&&previousId!==conn.peer){if(Object.hasOwn(state.game.selections||{},previousId)){state.game.selections[conn.peer]=state.game.selections[previousId];delete state.game.selections[previousId];}if(state.game.pendingRowChoice?.playerId===previousId)state.game.pendingRowChoice.playerId=conn.peer;if(state.game.lastReveal)state.game.lastReveal=state.game.lastReveal.map(item=>item.playerId===previousId?{...item,playerId:conn.peer}:item);}state.connections.set(conn.peer,conn);conn.send({type:'welcome',id:conn.peer,roomId:state.roomId});if(state.game){conn.send(playerView(conn.peer));saveHostRoom();}else broadcastLobby();return;}
+    if(state.game){conn.send({type:'error',message:'This game is already in progress. Rejoin using your original invite link.'});conn.close();return;}
     if(state.players.length>=10){conn.send({type:'error',message:'This table is full (10 players max).'});conn.close();return;}
-    if(state.players.some(p=>p.id===conn.peer))return;
-    const player={id:conn.peer,name:String(data.name||'Player').slice(0,18),human:true,online:true,ready:false,score:0,total:0,hand:[]};state.players.push(player);state.connections.set(conn.peer,conn);conn.send({type:'welcome',id:conn.peer,roomId:state.roomId});if(state.screen==='lobby')broadcastLobby();return;
+    const newPlayer={id:conn.peer,name:String(data.name||'Player').slice(0,18),resumeToken:token||undefined,human:true,online:true,ready:false,score:0,total:0,hand:[]};state.players.push(newPlayer);state.connections.set(conn.peer,conn);conn.send({type:'welcome',id:conn.peer,roomId:state.roomId});if(state.screen==='lobby')broadcastLobby();return;
   }
   if(data.type==='ready'&&state.screen==='lobby'){const player=state.players.find(p=>p.id===conn.peer);if(!player)return;player.ready=!!data.ready;broadcastLobby();return;}
   if(data.type==='reaction'){
@@ -284,12 +306,27 @@ function hostMessage(conn,data){if(!data||typeof data!=='object')return;if(data.
   }
 }
 function completeTurnIfReady(){const g=state.game;if(state.animating||!g||g.phase!=='choosing')return;g.players.filter(p=>p.human&&!p.online&&!g.selections[p.id]).forEach(p=>g.selections[p.id]=cpuChoice(p,g));if(!g.players.filter(p=>p.human&&p.online).every(p=>g.selections[p.id]!=null))return;g.players.filter(p=>!p.human&&!g.selections[p.id]).forEach(p=>g.selections[p.id]=cpuChoice(p,g));g.phase='countdown';g.countdownAt=Date.now()+3000;startCountdown(g,true);}
-function broadcastLobby(){const msg={type:'lobby',players:state.players.map(({id,name,online,human,ready})=>({id,name,online,human,ready})),roomId:state.roomId};state.connections.forEach(c=>{try{c.send(msg)}catch{}});renderLobby();}
-function playerView(id){const g=state.game;if(!g)return null;return {type:'game',viewer:id,game:{...g,players:g.players.map(p=>({...p,hand:p.id===id?p.hand:undefined})),readyPlayers:Object.keys(g.selections),selections:g.phase==='row-choice'?{...g.selections}:{},mode:'online'}};}
-function broadcast(){if(state.screen==='lobby'){broadcastLobby();return;}state.connections.forEach((c,id)=>{try{c.send(playerView(id))}catch{}});if(state.clientId)renderGame();}
+function broadcastLobby(){saveHostRoom();const msg={type:'lobby',players:state.players.map(({id,name,online,human,ready})=>({id,name,online,human,ready})),roomId:state.roomId};state.connections.forEach(c=>{try{c.send(msg)}catch{}});renderLobby();}
+function playerView(id){const g=state.game;if(!g)return null;return {type:'game',viewer:id,game:{...g,players:g.players.map(p=>{const {resumeToken,...view}=p;return {...view,hand:p.id===id?p.hand:undefined};}),readyPlayers:Object.keys(g.selections),selections:g.phase==='row-choice'?{...g.selections}:{},mode:'online'}};}
+function broadcast(){if(state.screen==='lobby'){broadcastLobby();return;}saveHostRoom();state.connections.forEach((c,id)=>{try{c.send(playerView(id))}catch{}});if(state.clientId)renderGame();}
 function startOnlineGame(){if(!state.host||state.players.filter(p=>p.human&&p.online).length<1)return;playSound('deal');setAmbient(false);clearTimeout(state.countdownTimer);clearInterval(state.countdownInterval);let add=+(document.querySelector('#lobbyBots')?.value||0);if(state.players.filter(p=>p.human&&p.online).length===1&&!state.players.some(p=>!p.human)&&add===0)add=1;for(let i=0;i<add&&state.players.length<10;i++){const ix=state.players.filter(p=>!p.human).length;state.players.push({id:`bot${ix+1}`,name:['Milo','Nora','Pip','June','Otto','Bea','Finn','Kit','Lou'][ix],human:false,online:true,score:0,total:0,hand:[]});}state.game={players:state.players,rows:dealHand(state.players),turn:1,round:1,tieOffset:0,phase:'choosing',selections:{},lastReveal:null,mode:'online'};state.submittedTurn=false;state.animating=false;state.replay=null;state.replayKey=null;state.revealOrigins={};state.stageSeen=new Set();state.stageTurnKey=null;state.screen='game';state.mode='online-host';state.screenTransition=true;broadcast();}
-function joinRoom(roomId){if(state.busy)return;if(!/^\d{4}$/.test(roomId)){showError('Enter the 4-digit room code.');return;}state.busy=true;showError('Finding your table…');getPeerLib().then(({Peer})=>{const peer=new Peer();state.peer=peer;state.host=false;state.clientId=peer.id;peer.on('open',()=>{const conn=peer.connect(`take5-${roomId}`,{reliable:true});state.connection=conn;conn.on('open',()=>conn.send({type:'hello',name:state.name}));conn.on('data',data=>clientMessage(data));conn.on('error',()=>{state.busy=false;showError('Could not reach that room. Check the code and try again.');});conn.on('close',()=>{if(state.screen==='game')say('Connection to the host was lost.');});});peer.on('error',err=>{state.busy=false;if(state.screen==='home')showError(err.type==='peer-unavailable'?'Room not found. Check the code and try again.':'Could not connect. Check your internet and try again.');});}).catch(()=>{state.busy=false;showError('Online rooms need an internet connection. Please try again.');});}
-function clientMessage(data){if(data?.type==='reaction'){showReaction(data);}else if(data?.type==='welcome'){state.clientId=data.id;state.roomId=data.roomId;state.busy=false;state.mode='online-guest';state.screen='lobby';renderLobby();}else if(data?.type==='lobby'){state.players=data.players;state.roomId=data.roomId;if(state.screen!=='game')state.screen='lobby';renderLobby();}else if(data?.type==='game'){const previous=state.game;const changedTurn=previous&&(previous.turn!==data.game.turn||previous.round!==data.game.round);state.game=data.game;state.players=data.game.players;state.clientId=data.viewer;state.mode='online-guest';state.screen=data.game.phase==='finished'?'result':'game';if(changedTurn){state.selected=null;state.submittedTurn=false;}if(data.game.readyPlayers?.includes(data.viewer))state.submittedTurn=true;renderGame();}else if(data?.type==='error'){state.busy=false;say(data.message);}}
+function connectGuestToRoom(roomId,peer,attempt=0){
+  if(state.peer!==peer||state.host)return;
+  let conn;
+  try{conn=peer.connect(`take5-${roomId}`,{reliable:true});}catch{scheduleGuestReconnect(roomId,peer,attempt);return;}
+  state.connection=conn;let welcomed=false;let welcomeTimer=setTimeout(()=>{if(!welcomed&&state.connection===conn)conn.close();},10000);
+  conn.on('open',()=>{if(state.peer===peer)conn.send({type:'hello',name:state.name,resumeToken:state.resumeToken});});
+  conn.on('data',data=>{if(data?.type==='welcome'){welcomed=true;clearTimeout(welcomeTimer);state.recoveringGuest=false;}clientMessage(data);});
+  conn.on('error',()=>conn.close());
+  conn.on('close',()=>{clearTimeout(welcomeTimer);if(state.connection!==conn||state.peer!==peer)return;scheduleGuestReconnect(roomId,peer,attempt);});
+}
+function scheduleGuestReconnect(roomId,peer,attempt){
+  if(state.peer!==peer||state.host)return;
+  if(!state.recoveringGuest&&state.screen!=='game'&&state.screen!=='lobby'){state.busy=false;showError('Could not reach that room. Check the code and try again.');return;}
+  state.recoveringGuest=true;clearTimeout(state.reconnectTimer);state.reconnectTimer=setTimeout(()=>connectGuestToRoom(roomId,peer,attempt+1),Math.min(8000,700*Math.pow(2,Math.min(attempt,3))));
+}
+function joinRoom(roomId){if(state.busy)return;if(!/^\d{4}$/.test(roomId)){showError('Enter the 4-digit room code.');return;}state.busy=true;state.roomId=roomId;roomResumeToken(roomId);showError('Finding your table…');getPeerLib().then(({Peer})=>{const peer=new Peer();state.peer=peer;state.host=false;state.clientId=peer.id;peer.on('open',()=>connectGuestToRoom(roomId,peer));peer.on('error',err=>{if(state.screen==='home'&&!state.recoveringGuest){state.busy=false;showError(err.type==='peer-unavailable'?'Room not found. Check the code and try again.':'Could not connect. Check your internet and try again.');}});}).catch(()=>{state.busy=false;showError('Online rooms need an internet connection. Please try again.');});}
+function clientMessage(data){if(data?.type==='reaction'){showReaction(data);}else if(data?.type==='welcome'){state.clientId=data.id;state.roomId=data.roomId;state.busy=false;state.mode='online-guest';state.screen='lobby';localStorage.setItem(guestSessionKey,JSON.stringify({roomId:data.roomId,token:state.resumeToken}));renderLobby();}else if(data?.type==='lobby'){state.players=data.players;state.roomId=data.roomId;if(state.screen!=='game')state.screen='lobby';renderLobby();}else if(data?.type==='game'){const previous=state.game;const changedTurn=previous&&(previous.turn!==data.game.turn||previous.round!==data.game.round);state.game=data.game;state.players=data.game.players;state.clientId=data.viewer;state.mode='online-guest';state.screen=data.game.phase==='finished'?'result':'game';if(changedTurn){state.selected=null;state.submittedTurn=false;}if(data.game.readyPlayers?.includes(data.viewer))state.submittedTurn=true;renderGame();}else if(data?.type==='error'){state.busy=false;say(data.message);}}
 function sendPick(card){if(state.animating||state.game?.phase!=='choosing')return;playSound('card');const origin=document.querySelector(`.hand-card[data-card="${card}"]`)?.getBoundingClientRect();if(origin)state.revealOrigins[state.clientId]={left:origin.left,top:origin.top,width:origin.width,height:origin.height};if(state.host){if(state.game.selections[state.clientId])return;state.game.selections[state.clientId]=card;completeTurnIfReady();broadcast();}else if(state.connection?.open){state.connection.send({type:'pick',card});state.selected=card;state.submittedTurn=true;renderGame();}}
 
 function resolveRowChoice(rowIndex){
@@ -353,5 +390,5 @@ function renderGame(){if(!state.game)return;const g=state.game;prepareRevealRepl
 }
 function renderLastReveal(reveal,myId){const mine=reveal.find(x=>x.playerId===myId);if(!mine)return reveal.map(x=>`${escapeHtml(x.name)} played ${x.card}${x.penalty?` and took ${x.penalty} bulls`:''}`).join(' · ');return `${mine.penalty?`You took ${mine.penalty} bullheads.`:`Your ${mine.card} landed in row ${mine.rowIndex+1}.`} ${reveal.length>1?reveal.filter(x=>x.playerId!==myId).map(x=>`${escapeHtml(x.name)} ${x.penalty?`took ${x.penalty} bulls`:`played ${x.card}`}`).join(' · '):''}`;}
 function renderResult(){document.body.classList.add('match-mode');state.screen='result';renderTopbar();const ordered=state.game.players.slice().sort((a,b)=>a.total-b.total);const winner=ordered[0];renderMarkup(app,`<section class="result-screen"><div class="result-mark">🏆</div><div class="eyebrow">THAT’S A WRAP</div><h1>${winner.id===state.clientId?'You kept your cool!':`${escapeHtml(winner.name)} takes it!`}</h1><p>Fewest bullheads at the table. A suspiciously good run.</p><div class="final-scores">${ordered.map((p,i)=>`<div class="final-score"><span>${i===0?'✳ ':''}${escapeHtml(p.name)}${p.id===state.clientId?' (you)':''}</span><b aria-label="${p.total} bullheads">${p.total}${bullIconMarkup()}</b></div>`).join('')}</div><button class="primary-button lobby-start" id="playAgain">Play again ↗</button><button class="pill-button" id="backHome">Back to table</button></section>`);bindPress('#playAgain',()=>{const online=state.mode.startsWith('online');if(online){if(state.host){state.players.forEach(p=>{p.score=0;p.total=0});startOnlineGame();}else say('Ask the host to start another game.');}else startLocal();});bindPress('#backHome',leaveToHome);}
-function cleanupPeer(){if(state.peer){try{state.peer.destroy()}catch{}}clearTimeout(state.countdownTimer);clearInterval(state.countdownInterval);document.querySelectorAll('.flying-card,.flying-back').forEach(node=>node.remove());state.animating=false;state.replay=null;state.replayKey=null;state.revealOrigins={};state.stageSeen=new Set();state.stageTurnKey=null;state.reactionCooldowns.clear();state.peer=null;state.connection=null;state.connections.clear();state.host=false;state.clientId=null;state.roomId='';state.players=[];history.replaceState({},'',location.pathname);}
-function leaveToHome(){cleanupPeer();state.screen='home';state.game=null;state.selected=null;state.tab='rooms';state.screenTransition=true;renderHome();}
+function cleanupPeer(){if(state.peer){try{state.peer.destroy()}catch{}}clearTimeout(state.countdownTimer);clearInterval(state.countdownInterval);clearTimeout(state.reconnectTimer);document.querySelectorAll('.flying-card,.flying-back').forEach(node=>node.remove());state.animating=false;state.replay=null;state.replayKey=null;state.revealOrigins={};state.stageSeen=new Set();state.stageTurnKey=null;state.reactionCooldowns.clear();state.recoveringGuest=false;state.resumeToken=null;state.peer=null;state.connection=null;state.connections.clear();state.host=false;state.clientId=null;state.roomId='';state.players=[];history.replaceState({},'',location.pathname);}
+function leaveToHome(){if(state.host)localStorage.removeItem(hostSaveKey);localStorage.removeItem(guestSessionKey);cleanupPeer();state.screen='home';state.game=null;state.selected=null;state.tab='rooms';state.screenTransition=true;renderHome();}
