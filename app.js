@@ -1,4 +1,5 @@
 import { clearNativeControls, mountNativeControls } from './rn-controls.js';
+import { isSoundEnabled, playSound, setAmbient, toggleSound, unlockAudio } from './audio.js';
 
 const app = document.querySelector('#app');
 const rulesDialog = document.querySelector('#rulesDialog');
@@ -11,6 +12,9 @@ const state = {
   animating: false, replay: null, replayKey: null, revealOrigins: {}, stageSeen: new Set(), stageTurnKey: null,
   countdownTimer: null, countdownInterval: null, screenTransition: false
 };
+
+document.addEventListener('pointerdown', unlockAudio, { passive: true });
+document.addEventListener('keydown', unlockAudio);
 
 document.querySelector('#homeLink').addEventListener('click', e => { e.preventDefault(); if (state.screen === 'game' || state.screen === 'result') leaveToHome(); else renderHome(); });
 mountNativeControls(rulesDialog);
@@ -29,8 +33,10 @@ function renderMarkup(container, markup) {
 }
 function bindPress(target, handler) {
   const elements = typeof target === 'string' ? document.querySelectorAll(target) : [target];
-  elements.forEach(element => element?.addEventListener('rnpress', event => handler(event, element)));
+  elements.forEach(element => element?.addEventListener('rnpress', event => { playSound('tap'); handler(event, element); }));
 }
+function soundButtonMarkup() { const enabled=isSoundEnabled();return `<button class="icon-button sound-toggle" id="soundToggle" aria-label="${enabled?'Mute sound':'Enable sound'}" aria-pressed="${enabled}" title="${enabled?'Mute sound':'Enable sound'}"><span class="sound-toggle-glyph" aria-hidden="true">♪</span><span class="sound-toggle-state" aria-hidden="true">${enabled?'':'×'}</span></button>`; }
+function bindSoundToggle() { bindPress('#soundToggle',()=>{toggleSound();renderTopbar();}); }
 function bulls(n) { return n === 55 ? 7 : n % 11 === 0 ? 5 : n % 10 === 0 ? 3 : n % 5 === 0 ? 2 : 1; }
 function cardClass(n) { return n === 55 ? 'double' : n % 11 === 0 ? 'double' : n % 10 === 0 ? 'tens' : n % 5 === 0 ? 'multiple-5' : ''; }
 function cardTone(n) { return ({1:'one-bull',2:'two-bulls',3:'three-bulls',5:'five-bulls',7:'seven-bulls'})[bulls(n)]; }
@@ -54,12 +60,14 @@ function renderTopbar() {
   }).join('') : '';
   if (!right) return;
   if (!live) {
-    renderMarkup(right, `<span class="top-note"><span class="online-dot"></span> the table is open</span><button class="icon-button" id="rulesButton" aria-label="How to play" title="How to play">?</button>`);
+    renderMarkup(right, `<span class="top-note"><span class="online-dot"></span> the table is open</span>${soundButtonMarkup()}<button class="icon-button" id="rulesButton" aria-label="How to play" title="How to play">?</button>`);
+    bindSoundToggle();
     bindPress('#rulesButton', () => rulesDialog.showModal());
     return;
   }
   const online = state.mode?.startsWith('online') || state.screen === 'lobby';
   const menuItems = [];
+  menuItems.push(`<button class="menu-action" data-menu-action="toggle-sound"><span class="menu-action-icon">${isSoundEnabled()?'♫':'♪'}</span><span>${isSoundEnabled()?'Sound on':'Sound off'}</span></button>`);
   if (online && state.roomId) {
     menuItems.push(`<button class="menu-action" data-menu-action="copy-invite"><span class="menu-action-icon">↗</span><span>Copy invite link</span></button>`);
     menuItems.push(`<button class="menu-action" data-menu-action="copy-code"><span class="menu-action-icon">#</span><span>Copy room code</span></button>`);
@@ -86,6 +94,7 @@ function renderTopbar() {
     document.querySelector('.menu-shell')?.classList.remove('is-open');
     if (action === 'copy-invite') copyInvite();
     else if (action === 'copy-code') copyText(state.roomId, 'Room code copied');
+    else if (action === 'toggle-sound') { toggleSound(); renderTopbar(); }
     else if (action === 'rules') rulesDialog.showModal();
     else if (action === 'leave') leaveToHome();
     else if (action === 'start-game') startOnlineGame();
@@ -97,7 +106,7 @@ function renderTopbar() {
   });
 }
 function renderHome() {
-  cleanupPeer(); document.body.classList.remove('match-mode','lobby-mode'); document.body.classList.add('home-mode'); state.screen='home'; state.game=null; state.selected=null;
+  cleanupPeer(); document.body.classList.remove('match-mode','lobby-mode'); document.body.classList.add('home-mode'); state.screen='home'; state.game=null; state.selected=null;setAmbient(true);
   renderTopbar();
   const nameValue = escapeHtml(state.name);
   renderMarkup(app, `<section class="landing">
@@ -117,7 +126,7 @@ function renderHome() {
         <section class="room-path join-path" aria-labelledby="joinRoomHeading">
           <div class="room-path-heading"><span class="room-path-step">01</span><div><h3 id="joinRoomHeading">Join a room</h3><p>Enter the four-digit code from your friend.</p></div></div>
           <label class="field-label" for="roomCode">Room code</label>
-          <div class="join-room-controls"><input class="text-field room-code-input" id="roomCode" type="text" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" placeholder="1234" aria-describedby="roomCodeHint" value="${escapeHtml(state.roomPrefill||'')}" autocomplete="one-time-code" /><button class="secondary-button" id="joinRoom">Join room</button></div>
+          <div class="join-room-controls"><input class="text-field room-code-input" id="roomCode" type="text" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" placeholder="1234" aria-describedby="roomCodeHint" value="${escapeHtml(state.roomPrefill||'')}" autocomplete="one-time-code" /><button class="primary-button action-button join-room-button" id="joinRoom">Join room</button></div>
           <span class="field-hint" id="roomCodeHint">Use the code shared by the host.</span>
         </section>
         <div class="room-divider"><span>OR CREATE YOUR OWN</span></div>
@@ -154,7 +163,7 @@ function makePlayers(botCount, online=false) {
 }
 function dealHand(players) { const deck=randomDeck();players.forEach(p=>p.hand=deck.splice(0,10).sort((a,b)=>a-b));return deck.splice(0,4).map(n=>[n]); }
 function startLocal() {
-  clearTimeout(state.countdownTimer);clearInterval(state.countdownInterval);const bots=+(document.querySelector('#botCount')?.value||state.botCount||3);state.botCount=bots;state.submittedTurn=false;state.animating=false;state.replay=null;state.replayKey=null;state.revealOrigins={};state.stageSeen=new Set();state.stageTurnKey=null;
+  playSound('deal');setAmbient(false);clearTimeout(state.countdownTimer);clearInterval(state.countdownInterval);const bots=+(document.querySelector('#botCount')?.value||state.botCount||3);state.botCount=bots;state.submittedTurn=false;state.animating=false;state.replay=null;state.replayKey=null;state.revealOrigins={};state.stageSeen=new Set();state.stageTurnKey=null;
   const players=makePlayers(bots); state.game={players,rows:dealHand(players),turn:1,round:1,tieOffset:0,phase:'choosing',selections:{},lastReveal:null,mode:'local',botStyle:document.querySelector('#botStyle')?.value||'clever'};
   state.mode='local';state.screen='game';state.selected=null;state.screenTransition=true;renderGame();
 }
@@ -173,7 +182,7 @@ function cpuChoice(player, game) {
   return best;
 }
 function submitLocal(card) {
-  const game=state.game;if(state.animating||!game||game.phase!=='choosing'||!game.players[0].hand.includes(card))return;
+  const game=state.game;if(state.animating||!game||game.phase!=='choosing'||!game.players[0].hand.includes(card))return;playSound('card');
   const origin=document.querySelector(`.hand-card[data-card="${card}"]`)?.getBoundingClientRect();if(origin)state.revealOrigins.self={left:origin.left,top:origin.top,width:origin.width,height:origin.height};
   state.selected=card;game.players.slice(1).forEach(p=>game.selections[p.id]=cpuChoice(p,game));game.selections.self=card;game.phase='countdown';game.countdownAt=Date.now()+3000;
   state.selected=null;renderGame();startCountdown(game,false);
@@ -235,10 +244,10 @@ function completeTurnIfReady(){const g=state.game;if(state.animating||!g||g.phas
 function broadcastLobby(){const msg={type:'lobby',players:state.players.map(({id,name,online,human,ready})=>({id,name,online,human,ready})),roomId:state.roomId};state.connections.forEach(c=>{try{c.send(msg)}catch{}});renderLobby();}
 function playerView(id){const g=state.game;if(!g)return null;return {type:'game',viewer:id,game:{...g,players:g.players.map(p=>({...p,hand:p.id===id?p.hand:undefined})),readyPlayers:Object.keys(g.selections),selections:g.phase==='row-choice'?{...g.selections}:{},mode:'online'}};}
 function broadcast(){if(state.screen==='lobby'){broadcastLobby();return;}state.connections.forEach((c,id)=>{try{c.send(playerView(id))}catch{}});if(state.clientId)renderGame();}
-function startOnlineGame(){if(!state.host||state.players.filter(p=>p.human&&p.online).length<1)return;clearTimeout(state.countdownTimer);clearInterval(state.countdownInterval);let add=+(document.querySelector('#lobbyBots')?.value||0);if(state.players.filter(p=>p.human&&p.online).length===1&&!state.players.some(p=>!p.human)&&add===0)add=1;for(let i=0;i<add&&state.players.length<10;i++){const ix=state.players.filter(p=>!p.human).length;state.players.push({id:`bot${ix+1}`,name:['Milo','Nora','Pip','June','Otto','Bea','Finn','Kit','Lou'][ix],human:false,online:true,score:0,total:0,hand:[]});}state.game={players:state.players,rows:dealHand(state.players),turn:1,round:1,tieOffset:0,phase:'choosing',selections:{},lastReveal:null,mode:'online'};state.submittedTurn=false;state.animating=false;state.replay=null;state.replayKey=null;state.revealOrigins={};state.stageSeen=new Set();state.stageTurnKey=null;state.screen='game';state.mode='online-host';state.screenTransition=true;broadcast();}
+function startOnlineGame(){if(!state.host||state.players.filter(p=>p.human&&p.online).length<1)return;playSound('deal');setAmbient(false);clearTimeout(state.countdownTimer);clearInterval(state.countdownInterval);let add=+(document.querySelector('#lobbyBots')?.value||0);if(state.players.filter(p=>p.human&&p.online).length===1&&!state.players.some(p=>!p.human)&&add===0)add=1;for(let i=0;i<add&&state.players.length<10;i++){const ix=state.players.filter(p=>!p.human).length;state.players.push({id:`bot${ix+1}`,name:['Milo','Nora','Pip','June','Otto','Bea','Finn','Kit','Lou'][ix],human:false,online:true,score:0,total:0,hand:[]});}state.game={players:state.players,rows:dealHand(state.players),turn:1,round:1,tieOffset:0,phase:'choosing',selections:{},lastReveal:null,mode:'online'};state.submittedTurn=false;state.animating=false;state.replay=null;state.replayKey=null;state.revealOrigins={};state.stageSeen=new Set();state.stageTurnKey=null;state.screen='game';state.mode='online-host';state.screenTransition=true;broadcast();}
 function joinRoom(roomId){if(state.busy)return;if(!/^\d{4}$/.test(roomId)){showError('Enter the 4-digit room code.');return;}state.busy=true;showError('Finding your table…');getPeerLib().then(({Peer})=>{const peer=new Peer();state.peer=peer;state.host=false;state.clientId=peer.id;peer.on('open',()=>{const conn=peer.connect(`take5-${roomId}`,{reliable:true});state.connection=conn;conn.on('open',()=>conn.send({type:'hello',name:state.name}));conn.on('data',data=>clientMessage(data));conn.on('error',()=>{state.busy=false;showError('Could not reach that room. Check the code and try again.');});conn.on('close',()=>{if(state.screen==='game')say('Connection to the host was lost.');});});peer.on('error',err=>{state.busy=false;if(state.screen==='home')showError(err.type==='peer-unavailable'?'Room not found. Check the code and try again.':'Could not connect. Check your internet and try again.');});}).catch(()=>{state.busy=false;showError('Online rooms need an internet connection. Please try again.');});}
 function clientMessage(data){if(data?.type==='welcome'){state.clientId=data.id;state.roomId=data.roomId;state.busy=false;state.mode='online-guest';state.screen='lobby';renderLobby();}else if(data?.type==='lobby'){state.players=data.players;state.roomId=data.roomId;if(state.screen!=='game')state.screen='lobby';renderLobby();}else if(data?.type==='game'){const previous=state.game;const changedTurn=previous&&(previous.turn!==data.game.turn||previous.round!==data.game.round);state.game=data.game;state.players=data.game.players;state.clientId=data.viewer;state.mode='online-guest';state.screen=data.game.phase==='finished'?'result':'game';if(changedTurn){state.selected=null;state.submittedTurn=false;}if(data.game.readyPlayers?.includes(data.viewer))state.submittedTurn=true;renderGame();}else if(data?.type==='error'){state.busy=false;say(data.message);}}
-function sendPick(card){if(state.animating||state.game?.phase!=='choosing')return;const origin=document.querySelector(`.hand-card[data-card="${card}"]`)?.getBoundingClientRect();if(origin)state.revealOrigins[state.clientId]={left:origin.left,top:origin.top,width:origin.width,height:origin.height};if(state.host){if(state.game.selections[state.clientId])return;state.game.selections[state.clientId]=card;completeTurnIfReady();broadcast();}else if(state.connection?.open){state.connection.send({type:'pick',card});state.selected=card;state.submittedTurn=true;renderGame();}}
+function sendPick(card){if(state.animating||state.game?.phase!=='choosing')return;playSound('card');const origin=document.querySelector(`.hand-card[data-card="${card}"]`)?.getBoundingClientRect();if(origin)state.revealOrigins[state.clientId]={left:origin.left,top:origin.top,width:origin.width,height:origin.height};if(state.host){if(state.game.selections[state.clientId])return;state.game.selections[state.clientId]=card;completeTurnIfReady();broadcast();}else if(state.connection?.open){state.connection.send({type:'pick',card});state.selected=card;state.submittedTurn=true;renderGame();}}
 
 function resolveRowChoice(rowIndex){
   const game=state.game,pending=game?.pendingRowChoice;
@@ -250,6 +259,7 @@ function resolveRowChoice(rowIndex){
   if(state.host)broadcast();else renderGame();
 }
 function chooseRow(rowIndex){
+  playSound('row');
   const game=state.game,pending=game?.pendingRowChoice;
   const viewerId=state.mode==='local'?game?.players[0]?.id:state.clientId;
   if(!pending||pending.playerId!==viewerId)return;
@@ -257,7 +267,7 @@ function chooseRow(rowIndex){
   else if(state.connection?.open)state.connection.send({type:'choose-row',rowIndex});
 }
 
-function renderLobby(){document.body.classList.remove('home-mode');document.body.classList.add('match-mode','lobby-mode');state.screen='lobby';const joined=state.players.filter(p=>p.online!==false).length;const me=state.players.find(p=>p.id===state.clientId);const guestReady=!!me?.ready;const code=escapeHtml(state.roomId);renderTopbar();
+function renderLobby(){setAmbient(false);document.body.classList.remove('home-mode');document.body.classList.add('match-mode','lobby-mode');state.screen='lobby';const joined=state.players.filter(p=>p.online!==false).length;const me=state.players.find(p=>p.id===state.clientId);const guestReady=!!me?.ready;const code=escapeHtml(state.roomId);renderTopbar();
   renderMarkup(app,`<section class="game-layout lobby-layout"><div class="lobby-row"><strong>ROOM CODE</strong><span class="room-code">${code}</span><span class="lobby-wait">${joined<2?'Waiting for friends, or start a practice game now.':`${joined} players connected`}</span></div><div class="tabletop"><div class="tabletop-head"><span>THE TABLE</span><strong>2–10 PLAYERS</strong></div><div class="row-empty">${joined<2?'Share the invite link, or start now and a bot will join your table.':'Players are here. The host can start the game.'}</div></div><div class="game-bottom lobby-bottom"><div></div><aside class="turn-side"><div class="turn-state">READY TO PLAY</div><p class="turn-message">${joined<2?'Start now and play with one bot, or wait for friends to join.':'Everyone is here. Deal the cards!'}</p>${state.host?`<label class="field-label" for="lobbyBots">Bots to add</label><select class="select-field" id="lobbyBots"><option value="0">No bots</option><option value="1">1 bot</option><option value="2">2 bots</option><option value="3">3 bots</option></select><button class="primary-button lobby-start" id="beginOnline">Start game ↗</button>`:`<button class="primary-button lobby-start lobby-ready" id="toggleReady">${guestReady?'Ready ✓':'Ready up'}</button><div class="turn-help">${guestReady?'You’re ready. Waiting for the host…':'Tap Ready when you’re set to play.'}</div>`}</aside></div></section>`);
   bindPress('#beginOnline',startOnlineGame);bindPress('#toggleReady',()=>{const next=!guestReady;state.players=state.players.map(p=>p.id===state.clientId?{...p,ready:next}:p);state.connection?.send({type:'ready',ready:next});renderLobby();});
 }
@@ -271,7 +281,7 @@ function animateStagedCards(){const cards=Array.from(app.querySelectorAll('.stag
 
 function prepareRevealReplay(game){if(!game.lastReveal?.length)return;const key=`${game.round}:${game.turn}:${game.lastReveal.map(item=>`${item.playerId}-${item.card}`).join(',')}`;if(key===state.replayKey)return;state.replayKey=key;state.replay={key,reveals:game.lastReveal.map(item=>({...item})),seen:new Set(),active:true,running:false};state.revealOrigins=state.revealOrigins||{};state.animating=true;}
 function wait(ms){return new Promise(resolve=>setTimeout(resolve,ms));}
-async function runRevealAnimation(){const replay=state.replay;if(!replay?.active||replay.running)return;replay.running=true;state.animating=true;const reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;const duration=reduced?180:500;await wait(reduced?150:720);
+async function runRevealAnimation(){const replay=state.replay;if(!replay?.active||replay.running)return;playSound('deal');replay.running=true;state.animating=true;const reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;const duration=reduced?180:500;await wait(reduced?150:720);
   for(const item of replay.reveals){if(state.replay!==replay||state.screen==='home')break;const row=app.querySelector(`.row-lane[data-row-index="${item.rowIndex}"]`);const target=app.querySelector(`.playing-card[data-row-index="${item.rowIndex}"][data-card-number="${item.card}"]`);const destination=target||row?.querySelector('.row-cards');let source=state.revealOrigins?.[item.playerId];if(!source){const sourceNode=Array.from(document.querySelectorAll('[data-player-id]')).find(node=>node.dataset.playerId===item.playerId);source=sourceNode?.querySelector('.opponent-cards')?.getBoundingClientRect()||sourceNode?.getBoundingClientRect()||app.querySelector('.hand-area')?.getBoundingClientRect();}if(!source||!destination){replay.seen.add(item.card);target?.classList.remove('reveal-pending');continue;}
     const from={x:source.left+source.width/2,y:source.top+source.height/2};const rect=destination.getBoundingClientRect();const to={x:rect.left+rect.width/2,y:rect.top+rect.height/2};const flyer=document.createElement('div');flyer.className='flying-card';flyer.innerHTML=cardFace(item.card);document.body.append(flyer);flyer.style.left=`${from.x}px`;flyer.style.top=`${from.y}px`;
     try{await flyer.animate([{left:`${from.x}px`,top:`${from.y}px`,transform:'translate(-50%,-50%) scale(.62) rotate(-5deg)'},{left:`${(from.x+to.x)/2}px`,top:`${(from.y+to.y)/2-24}px`,transform:'translate(-50%,-50%) scale(.86) rotate(2deg)'},{left:`${to.x}px`,top:`${to.y}px`,transform:'translate(-50%,-50%) scale(1) rotate(0deg)'}],{duration,easing:'cubic-bezier(.2,.78,.24,1)',fill:'forwards'}).finished;}catch{}

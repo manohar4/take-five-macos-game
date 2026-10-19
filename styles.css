@@ -154,8 +154,8 @@ body.match-mode{background:#124d2b;overflow:hidden;color:white}.match-mode .page
 .home-mode .join-room-controls{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:stretch}
 .home-mode .room-code-input{text-align:center;font:700 18px var(--mono);letter-spacing:.22em;font-variant-numeric:tabular-nums}
 .home-mode .room-code-input::placeholder{color:#a4ad9e;letter-spacing:.2em}
-.home-mode .join-room-controls .secondary-button{position:relative;min-width:132px;min-height:50px;padding:0 38px 0 15px;border:1px solid #cbd8c2;border-radius:11px;background:#e8efdf;color:#31553a;font:700 13px var(--sans);white-space:nowrap}
-.home-mode .join-room-controls .secondary-button::after{content:"→";position:absolute;right:11px;top:50%;transform:translateY(-52%);font:700 19px/1 var(--sans)}
+.home-mode .join-room-controls .join-room-button{width:auto;min-width:132px;min-height:50px;margin:0;padding:0 48px 0 15px;border-radius:11px;font-size:13px;white-space:nowrap}
+.home-mode .join-room-controls .join-room-button::after{right:8px;width:32px;height:32px;font-size:18px}
 .home-mode .field-hint{display:block;margin-top:6px;color:#77806f;font-size:10px;line-height:1.35}
 .home-mode .room-divider{display:flex;align-items:center;gap:10px;margin:11px 0;color:#828a79;font:700 8px var(--mono);letter-spacing:.12em}
 .home-mode .room-divider::before,.home-mode .room-divider::after{content:"";height:1px;flex:1;background:#dce2d4}
@@ -209,8 +209,8 @@ body.match-mode{background:#124d2b;overflow:hidden;color:white}.match-mode .page
   .home-mode .room-path-heading p{font-size:10px}
   .home-mode .room-path .field-label{margin-top:10px}
   .home-mode .join-room-controls{gap:6px}
-  .home-mode .join-room-controls .secondary-button{min-width:112px;min-height:50px;padding:0 32px 0 10px;font-size:12px}
-  .home-mode .join-room-controls .secondary-button::after{right:8px}
+  .home-mode .join-room-controls .join-room-button{min-width:112px;min-height:50px;padding:0 41px 0 10px;font-size:12px}
+  .home-mode .join-room-controls .join-room-button::after{right:6px;width:30px;height:30px}
   .home-mode .room-divider{margin:9px 0}
   .home-mode .action-button{min-height:52px;margin-top:11px;font-size:15px}
   .home-mode .action-button::after{width:32px;height:32px}
@@ -556,6 +556,12 @@ body.home-mode{min-height:100svh;overflow:hidden;background:#0e5731;color:#fff}
 
 /* Keep the two home-screen mode labels centered in their full touch targets. */
 .home-mode .setup-tab{display:flex;align-items:center;justify-content:center;text-align:center}
+.sound-toggle{position:relative}
+.sound-toggle-glyph{font:700 21px/1 var(--sans)}
+.sound-toggle-state{position:absolute;right:7px;top:4px;font:700 13px/1 var(--sans)}
+.sound-toggle[aria-pressed="true"] .sound-toggle-state{display:none}
+.home-mode .sound-toggle{border-color:#ffffff8a;background:#ffffff20;color:white}
+.match-mode .sound-toggle{border-color:#ffffff75;background:#123c28a8;color:white;backdrop-filter:blur(9px)}
 @media(max-width:420px){
   .match-mode .topbar{padding:0 7px;gap:4px}
   .match-mode .header-player{gap:4px;padding:4px 6px 4px 4px}
