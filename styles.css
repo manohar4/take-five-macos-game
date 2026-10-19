@@ -593,6 +593,20 @@ body.home-mode{min-height:100svh;overflow:hidden;background:#0e5731;color:#fff}
 @media(max-width:390px){.match-mode .row-choice-bay{width:calc(100vw - 14px);padding:7px;gap:6px}.match-mode .row-choice-options{gap:3px}.match-mode .row-choice-option{padding:5px 3px;min-height:64px}.match-mode .row-choice-option-top>b{font-size:6px}.match-mode .row-choice-option-top>strong{min-width:26px}.match-mode .row-choice-action{font-size:6px}}
 @media(prefers-reduced-motion:reduce){.match-mode .row-choice-bay{animation:none}.match-mode .row-choice-option{transition:none}}
 
+/* Keep each row choice readable at a glance, especially in the four-column mobile layout. */
+.match-mode .row-choice-options{gap:7px}
+.match-mode .row-choice-option{justify-content:flex-start;gap:8px;min-height:94px;padding:10px;border-color:#cbd9bd;border-radius:14px;background:linear-gradient(155deg,#fffef9f5,#edf3e5f2);box-shadow:0 3px 0 #cddbc1,0 6px 14px #18361e14}
+.match-mode .row-choice-option-top{flex:0 0 auto;min-height:24px}
+.match-mode .row-choice-option-top>b{font-size:10px;letter-spacing:.09em;color:#526b46}
+.match-mode .row-choice-penalty{display:inline-flex!important;flex-direction:row;align-items:center;justify-content:center;gap:5px;min-width:0!important;padding:5px 8px!important;border:1px solid #e4d27b;border-radius:999px;background:#fff4be;color:#3f582d;font:800 13px/1 var(--sans);white-space:nowrap}
+.match-mode .row-choice-penalty .bull-icon{display:inline-flex;flex:0 0 auto;width:18px;height:15px;margin:0}
+.match-mode .row-choice-preview{flex:1 1 auto;min-height:24px}
+.match-mode .row-choice-preview i{min-width:26px;height:23px;border-color:#d7e0cb;background:#f8f9f1;color:#35533a;font-size:9px}
+.match-mode .row-choice-action{flex:0 0 auto;min-height:20px;padding-top:5px;border-top:1px solid #e2e9d8;color:#496b3e;font-size:9px;letter-spacing:.02em}
+.match-mode .row-choice-action b{font-size:15px}
+@media(max-width:700px){.match-mode .row-choice-bay{width:calc(100vw - 20px);max-height:min(40vh,280px);gap:8px;padding:10px}.match-mode .row-choice-header{gap:9px}.match-mode .row-choice-card{flex-basis:35px;width:35px;height:52px}.match-mode .row-choice-copy h2{font-size:16px}.match-mode .row-choice-options{grid-template-columns:repeat(4,minmax(0,1fr));gap:5px}.match-mode .row-choice-option{min-height:82px;padding:7px 6px;border-radius:11px;gap:6px}.match-mode .row-choice-option-top>b{font-size:8px}.match-mode .row-choice-penalty{gap:4px;padding:4px 6px!important;font-size:12px}.match-mode .row-choice-penalty .bull-icon{width:16px;height:13px}.match-mode .row-choice-preview{min-height:20px;gap:2px}.match-mode .row-choice-preview i{min-width:19px;height:19px;font-size:8px}.match-mode .row-choice-action{min-height:18px;padding-top:4px;font-size:8px}}
+@media(max-width:390px){.match-mode .row-choice-bay{width:calc(100vw - 16px);padding:8px;gap:7px}.match-mode .row-choice-options{gap:4px}.match-mode .row-choice-option{min-height:76px;padding:6px 4px;gap:5px}.match-mode .row-choice-option-top>b{font-size:7px}.match-mode .row-choice-penalty{gap:3px;padding:4px 5px!important;font-size:11px}.match-mode .row-choice-penalty .bull-icon{width:14px;height:12px}.match-mode .row-choice-preview i{min-width:17px;height:18px;font-size:7px}.match-mode .row-choice-action{font-size:7px}}
+
 /* Keep bullhead counts recognizable and reveal selected cards during row choice. */
 .bull-icon{display:inline-flex;flex:0 0 auto;align-items:center;justify-content:center;width:12px;height:10px}
 .bull-icon-art{display:block;width:100%;height:100%;object-fit:contain}
