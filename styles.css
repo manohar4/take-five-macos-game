@@ -618,6 +618,16 @@ body.home-mode{min-height:100svh;overflow:hidden;background:#0e5731;color:#fff}
 .bull-icon-art{display:block;width:100%;height:100%;object-fit:contain}
 .match-mode .bull-icon{width:12px;height:10px}
 .match-mode .header-player-score{display:flex;align-items:center;justify-content:center;gap:3px}
+
+/* Native shells use the same game UI while respecting device cutouts and touch targets. */
+html.capacitor-native{height:100%;overscroll-behavior:none;-webkit-text-size-adjust:100%;-webkit-tap-highlight-color:transparent}
+html.capacitor-native body{min-height:100%;overscroll-behavior:none}
+html.capacitor-native body.home-mode .page-shell{height:100dvh;min-height:0;padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom)}
+html.capacitor-native body.match-mode .page-shell{min-height:100dvh;padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom)}
+html.capacitor-native input,html.capacitor-native select,html.capacitor-native button{touch-action:manipulation}
+html.capacitor-native .text-field,html.capacitor-native .select-field{min-height:44px;font-size:16px}
+html.capacitor-native .primary-button,html.capacitor-native .secondary-button,html.capacitor-native .row-choice-option,html.capacitor-native .menu-action{min-height:44px}
+html.capacitor-native .icon-button,html.capacitor-native .menu-trigger{width:44px;height:44px}
 .match-mode .header-player-score .bull-icon{width:11px;height:9px}
 .match-mode .my-score{gap:5px}
 .match-mode .my-score .bull-icon{width:13px;height:11px}

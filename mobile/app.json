@@ -1,0 +1,46 @@
+{
+  "expo": {
+    "name": "Take 5 Friends",
+    "slug": "take-five-friends",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "scheme": "takefivefriends",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.takefivefriends.game",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
+    "android": {
+      "package": "com.takefivefriends.game",
+      "adaptiveIcon": {
+        "backgroundColor": "#FFD84E",
+        "foregroundImage": "./assets/android-icon-foreground.png"
+      }
+    },
+    "plugins": [
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 200,
+          "resizeMode": "contain",
+          "backgroundColor": "#0e5731"
+        }
+      ]
+    ],
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "extra": {
+      "gameUrl": "https://take-five-friends-game.onrender.com/",
+      "eas": {
+        "projectId": "50fc140b-16e2-43d6-a62f-baf1fcd50bf5"
+      }
+    },
+    "owner": "manohar_4"
+  }
+}

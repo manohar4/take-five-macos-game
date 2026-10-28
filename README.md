@@ -13,6 +13,18 @@ npm run dev
 
 Then open the local URL printed by Vite (usually <http://localhost:5173>). The game buttons and icons use React Native Web.
 
+## Build the iOS and Android apps
+
+The mobile apps package the same game UI and game code in a native Capacitor shell. The browser game and Render deployment continue to use the same Vite build.
+
+1. Install Xcode on a Mac for iOS, and install Android Studio with its Android SDK for Android.
+2. Run `npm run cap:sync` to rebuild the web assets, generate the app icons and launch screens, and copy everything into both native projects.
+3. Open a project with `npm run cap:open:ios` or `npm run cap:open:android`, then select a simulator/device and use the IDE's Run action.
+
+The app can play against bots without a server. Online rooms need internet access and the room host's app to stay active, just like the browser version. App Store and Google Play signing and publishing are separate release steps.
+
+For Expo Go preview and EAS cloud builds, use the companion Expo shell in `mobile/`. See `mobile/README.md` for those steps. It loads the live Render game so the website remains the single source for gameplay and visuals.
+
 ## Play online with friends
 
 Publish the built `dist/` folder to a static HTTPS host, then open the hosted page, choose **Host online**, and share the invite link. Friends open the link, choose a name, and join the room. The host can start alone; a bot joins automatically if no other player has joined. The game uses PeerJS for WebRTC signaling and sends game data directly between the host and players. An internet connection and a host browser tab that stays open are required. No game account or application server is required.

@@ -5,14 +5,25 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
-    "build": "vite build && node scripts/copy-assets.mjs"
+    "build": "vite build && node scripts/copy-assets.mjs",
+    "cap:sync": "npm run build && npm run cap:icons && cap sync",
+    "cap:icons": "node scripts/generate-app-icons.mjs",
+    "cap:open:ios": "cap open ios",
+    "cap:open:android": "cap open android"
   },
   "dependencies": {
+    "@capacitor/android": "^8.5.3",
+    "@capacitor/app": "^8.1.2",
+    "@capacitor/core": "^8.5.3",
+    "@capacitor/ios": "^8.5.3",
     "react": "18.3.1",
     "react-dom": "18.3.1",
     "react-native-web": "0.19.13"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.5.3",
+    "@resvg/resvg-js": "^2.6.2",
+    "sharp": "^0.35.5",
     "vite": "^6.4.1"
   },
   "engines": {

@@ -1,0 +1,17 @@
+{
+  "name": "Take 5 Friends",
+  "short_name": "Take 5",
+  "description": "A spirited card game of clever choices and not-so-clever cows.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0e5731",
+  "theme_color": "#0e5731",
+  "icons": [
+    {
+      "src": "/assets/app-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
