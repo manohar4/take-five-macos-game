@@ -1,0 +1,16 @@
+{
+	"appId": "com.takefivefriends.game",
+	"appName": "Take 5 Friends",
+	"webDir": "dist",
+	"backgroundColor": "#0e5731",
+	"server": {
+		"androidScheme": "https"
+	},
+	"ios": {
+		"contentInset": "automatic",
+		"preferredContentMode": "mobile"
+	},
+	"packageClassList": [
+		"AppPlugin"
+	]
+}
