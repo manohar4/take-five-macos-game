@@ -240,12 +240,16 @@ function submitLocal(card) {
 function resolveTurn(game, chosenRowIndex) {
   const order=game.players.map((_,i)=>(i+game.tieOffset)%game.players.length);
   const selected=game.players.map(p=>({p,card:game.selections[p.id]})).sort((a,b)=>a.card-b.card||order.indexOf(game.players.indexOf(a.p))-order.indexOf(game.players.indexOf(b.p)));
+  const first=selected.find(item=>item.p.hand.includes(item.card));
+  if(first){
+    const hasLowerRow=game.rows.some(row=>first.card>row.at(-1));
+    if(!hasLowerRow&&first.p.human&&chosenRowIndex==null){game.pendingRowChoice={playerId:first.p.id,card:first.card};game.phase='row-choice';return true;}
+  }
   const reveals=[];
   for(const {p,card} of selected){const at=p.hand.indexOf(card);if(at<0)continue;p.hand.splice(at,1);let candidates=game.rows.map((row,i)=>({i,top:row.at(-1)})).filter(x=>card>x.top).sort((a,b)=>b.top-a.top);let rowIndex,penalty=0,tookRow=false;
     if(!candidates.length){
-      const choiceNeeded=p.human&&chosenRowIndex==null;
-      if(choiceNeeded){p.hand.splice(at,0,card);game.pendingRowChoice={playerId:p.id,card};game.phase='row-choice';return true;}
-      rowIndex=chosenRowIndex!=null?chosenRowIndex:game.rows.reduce((i,row,j)=>row.reduce((s,n)=>s+bulls(n),0)<game.rows[i].reduce((s,n)=>s+bulls(n),0)?j:i,0);
+      const usesChoice=chosenRowIndex!=null&&p.id===game.pendingRowChoice?.playerId;
+      rowIndex=usesChoice?chosenRowIndex:game.rows.reduce((i,row,j)=>row.reduce((s,n)=>s+bulls(n),0)<game.rows[i].reduce((s,n)=>s+bulls(n),0)?j:i,0);
       if(!Number.isInteger(rowIndex)||rowIndex<0||rowIndex>=game.rows.length){p.hand.splice(at,0,card);return true;}
       penalty=game.rows[rowIndex].reduce((s,n)=>s+bulls(n),0);p.score+=penalty;p.total+=penalty;tookRow=true;game.rows[rowIndex]=[card];
     }

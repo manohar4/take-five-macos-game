@@ -1,7 +1,12 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { flushSync } from 'react-dom';
-import { Image, Pressable, Text, View } from 'react-native-web';
+// Import individual React Native Web components. Importing from the package root
+// pulls in the full native surface (including Animated), which Vite cannot bundle.
+import Image from 'react-native-web/dist/exports/Image/index.js';
+import Pressable from 'react-native-web/dist/exports/Pressable/index.js';
+import Text from 'react-native-web/dist/exports/Text/index.js';
+import View from 'react-native-web/dist/exports/View/index.js';
 
 const roots = new Map();
 const inlineTags = new Set(['span', 'i', 'b', 'strong', 'small', 'em', 'label']);
