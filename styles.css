@@ -628,6 +628,13 @@ html.capacitor-native input,html.capacitor-native select,html.capacitor-native b
 html.capacitor-native .text-field,html.capacitor-native .select-field{min-height:44px;font-size:16px}
 html.capacitor-native .primary-button,html.capacitor-native .secondary-button,html.capacitor-native .row-choice-option,html.capacitor-native .menu-action{min-height:44px}
 html.capacitor-native .icon-button,html.capacitor-native .menu-trigger{width:44px;height:44px}
+@media(max-width:700px){
+  /* WKWebView can report a zero safe-area inset on Dynamic Island devices. */
+  html.capacitor-native body.match-mode .page-shell{padding-top:0;padding-bottom:env(safe-area-inset-bottom)}
+  html.capacitor-native .match-mode .topbar{top:0;height:calc(60px + max(env(safe-area-inset-top),54px));padding:calc(max(env(safe-area-inset-top),54px) + 4px) 10px 8px;align-items:flex-end}
+  html.capacitor-native .match-mode .game-layout{padding-top:calc(68px + max(env(safe-area-inset-top),54px))}
+  html.capacitor-native .match-mode .lobby-mode .game-layout{padding-top:calc(68px + max(env(safe-area-inset-top),54px))}
+}
 .match-mode .header-player-score .bull-icon{width:11px;height:9px}
 .match-mode .my-score{gap:5px}
 .match-mode .my-score .bull-icon{width:13px;height:11px}
