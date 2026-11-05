@@ -39,7 +39,7 @@ private enum GameURL {
         guard !trimmed.isEmpty else { return defaultURL }
 
         if !trimmed.hasPrefix("http") {
-            guard trimmed.count == 4, trimmed.allSatisfy(\\.isNumber) else { return nil }
+            guard trimmed.count == 4, trimmed.allSatisfy(\.isNumber) else { return nil }
         }
 
         let candidate = trimmed.hasPrefix("http")
