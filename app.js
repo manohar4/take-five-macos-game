@@ -189,7 +189,8 @@ function renderPhase10Setup() {
 }
 function phase10CardMarkup(item, selected=false) {
   const special=isWild(item)?'wild':isSkip(item)?'skip':''; const label=isWild(item)?'★':isSkip(item)?'⊘':item.value;
-  return `<button class="phase10-card ${special} ${item.color||''} ${selected?'is-selected':''}" data-phase-card="${item.id}" aria-label="${isWild(item)?'Wild card':isSkip(item)?'Skip card':`${item.color} ${item.value}`}" ${state.phase10?.turn!=='play'?'aria-disabled="true"':''}><span>${label}</span><i>${special==='wild'?'WILD':special==='skip'?'SKIP':item.color}</i></button>`;
+  const corner=special==='wild'?'W':special==='skip'?'S':item.value;
+  return `<button class="phase10-card ${special} ${item.color||''} ${selected?'is-selected':''}" data-phase-card="${item.id}" aria-label="${isWild(item)?'Wild card':isSkip(item)?'Skip card':`${item.color} ${item.value}`}" ${state.phase10?.turn!=='play'?'aria-disabled="true"':''}><span class="phase10-card-band phase10-card-band-top"><b>${corner}</b><b>${corner}</b></span><strong class="phase10-card-value">${label}</strong><span class="phase10-card-band phase10-card-band-bottom"><b>${corner}</b><b>${corner}</b></span><i>${special==='wild'?'WILD':special==='skip'?'SKIP':item.color}</i></button>`;
 }
 function phase10RequiredCount(phase){return [6,7,8,7,8,9,8,7,7,8][phase-1]||6;}
 function combinations(items,size,start=0,picked=[],result=[]){if(picked.length===size){result.push(picked);return result;}for(let i=start;i<=items.length-(size-picked.length);i++)combinations(items,size,i+1,picked.concat(items[i]),result);return result;}
