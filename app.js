@@ -189,7 +189,7 @@ function renderPhase10Setup() {
 }
 function phase10CardMarkup(item, selected=false) {
   const special=isWild(item)?'wild':isSkip(item)?'skip':''; const label=isWild(item)?'★':isSkip(item)?'⊘':item.value;
-  const corner=special==='wild'?'W':special==='skip'?'S':item.value;
+  const corner=special==='wild'?'★':special==='skip'?'⊘':item.value;
   return `<button class="phase10-card ${special} ${item.color||''} ${selected?'is-selected':''}" data-phase-card="${item.id}" aria-label="${isWild(item)?'Wild card':isSkip(item)?'Skip card':`${item.color} ${item.value}`}" ${state.phase10?.turn!=='play'?'aria-disabled="true"':''}><div class="phase10-card-band phase10-card-band-top"><b>${corner}</b><b>${corner}</b></div><b class="phase10-card-value">${label}</b><div class="phase10-card-band phase10-card-band-bottom"><b>${corner}</b><b>${corner}</b></div><i>${special==='wild'?'WILD':special==='skip'?'SKIP':item.color}</i></button>`;
 }
 function phase10RequiredCount(phase){return [6,7,8,7,8,9,8,7,7,8][phase-1]||6;}
