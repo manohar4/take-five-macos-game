@@ -13,9 +13,9 @@ export const games = [
     id: 'phase-10',
     name: 'Phase 10',
     category: 'Card game',
-    status: 'coming-soon',
-    route: null,
-    description: 'Complete challenging phases and race to be the first to finish.',
+    status: 'available',
+    route: 'phase-10',
+    description: 'Build sets, make runs, and race through all ten phases.',
     artwork: 'phase10'
   },
   {
@@ -43,7 +43,7 @@ export function gameArtwork(game) {
 
 export function GameCard(game) {
   const available = game.status === 'available';
-  return `<article class="game-card game-card--${game.id}" ${available ? `data-game-tile="play" role="button" tabindex="0" aria-label="Play ${game.name}"` : ''}>
+  return `<article class="game-card game-card--${game.id}" data-game-id="${game.id}" ${available ? `data-game-tile="play" role="button" tabindex="0" aria-label="Play ${game.name}"` : ''}>
     ${gameArtwork(game)}
     <div class="game-card-copy">
       <div class="game-card-meta"><span>${game.category}</span>${gameStatusBadge(game)}</div>

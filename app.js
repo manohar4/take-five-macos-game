@@ -1,7 +1,8 @@
 import { clearNativeControls, mountNativeControls } from './rn-controls.js';
 import { isSoundEnabled, playSound, setAmbient, toggleSound, unlockAudio } from './audio.js';
 import { isNativeApp, publicGameUrl } from './native-app.js';
-import { featuredGame, GameLibrary, gameArtwork, gameStatusBadge } from './games.js';
+import { games, featuredGame, GameLibrary, gameArtwork, gameStatusBadge } from './games.js';
+import { MEMOJIS, PHASES, cardPoints, isSkip, isWild, phase10Game, phaseIsValid } from './phase10.js';
 
 const app = document.querySelector('#app');
 const rulesDialog = document.querySelector('#rulesDialog');
@@ -14,7 +15,7 @@ const state = {
   roomId: '', players: [], game: null, selected: null, busy: false, toastTimer: null,
   botCount: 3, roundFlashTimer: null, submittedTurn: false,
   animating: false, replay: null, replayKey: null, revealOrigins: {}, stageSeen: new Set(), stageTurnKey: null,
-  countdownTimer: null, countdownInterval: null, reconnectTimer: null, peerReconnectTimer: null, disconnectAdvanceTimer: null, resumeToken: null, recoveringGuest: false, reactionCooldowns: new Map(), screenTransition: false
+  countdownTimer: null, countdownInterval: null, reconnectTimer: null, peerReconnectTimer: null, disconnectAdvanceTimer: null, resumeToken: null, recoveringGuest: false, reactionCooldowns: new Map(), screenTransition: false, phase10: null, phase10Avatar: '🧑🏻'
 };
 
 document.addEventListener('pointerdown', unlockAudio, { passive: true });
@@ -159,13 +160,13 @@ function renderHome() {
     renderTopbar();
     renderMarkup(app, `<section class="platform-homepage">
       <section class="platform-welcome" aria-labelledby="platformWelcomeTitle"><div><h1 id="platformWelcomeTitle">Ready to play?</h1><p>Pick your game. Bring your friends. Let the fun begin.</p></div><span class="platform-online"><i></i> Games ready</span></section>
-      <section class="platform-featured" data-game-tile="play" role="button" tabindex="0" aria-label="Play ${escapeHtml(featuredGame.name)}" aria-labelledby="featuredTitle"><div class="featured-art">${gameArtwork(featuredGame)}</div><div class="featured-copy"><div class="featured-meta"><span>Featured game</span>${gameStatusBadge(featuredGame)}</div><h2 id="featuredTitle">${escapeHtml(featuredGame.name)}</h2><p>${featuredGame.featuredDescription}</p><button class="platform-primary" data-game-action="play" data-game-id="${featuredGame.id}">Play now <span>→</span></button></div><div class="featured-detail"><span>2–10 players</span><span>10 cards each</span><span>15 min</span></div></section>
+      <section class="platform-featured" data-game-tile="play" data-game-id="${featuredGame.id}" role="button" tabindex="0" aria-label="Play ${escapeHtml(featuredGame.name)}" aria-labelledby="featuredTitle"><div class="featured-art">${gameArtwork(featuredGame)}</div><div class="featured-copy"><div class="featured-meta"><span>Featured game</span>${gameStatusBadge(featuredGame)}</div><h2 id="featuredTitle">${escapeHtml(featuredGame.name)}</h2><p>${featuredGame.featuredDescription}</p><button class="platform-primary" data-game-action="play" data-game-id="${featuredGame.id}">Play now <span>→</span></button></div><div class="featured-detail"><span>2–10 players</span><span>10 cards each</span><span>15 min</span></div></section>
       <section class="platform-library" id="games" aria-labelledby="gamesTitle"><div class="section-heading"><div><span>Game library</span><h2 id="gamesTitle">Your Game Collection</h2><p>Choose a game and start playing.</p></div></div><div class="game-library-grid">${GameLibrary()}</div></section>
     </section>`, { nativeControls: false });
-    bindPress('[data-game-action]',(_,button)=>{if(button.dataset.gameAction==='play')renderTakeFiveHome();else say(`${button.dataset.gameId==='phase-10'?'Phase 10':'Splendor'} is coming soon.`);});
+    bindPress('[data-game-action]',(_,button)=>{if(button.dataset.gameAction==='play')launchGame(button.dataset.gameId);else say(`${button.dataset.gameId==='phase-10'?'Phase 10':'Splendor'} is coming soon.`);});
     document.querySelectorAll('[data-game-tile="play"]').forEach(tile => {
-      tile.addEventListener('click', event => { if (!event.target.closest('[data-game-action]')) renderTakeFiveHome(); });
-      tile.addEventListener('keydown', event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); renderTakeFiveHome(); } });
+      tile.addEventListener('click', event => { if (!event.target.closest('[data-game-action]')) launchGame(tile.dataset.gameId || featuredGame.id); });
+      tile.addEventListener('keydown', event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); launchGame(tile.dataset.gameId || featuredGame.id); } });
     });
   } catch (error) {
     console.error('Could not render the Card Games lobby.', error);
@@ -173,6 +174,39 @@ function renderHome() {
     bindPress('#retryLobby', renderHome);
   }
 }
+function launchGame(gameId) {
+  const game = games.find(item => item.id === gameId);
+  if (!game || game.status !== 'available') return say('This game is coming soon.');
+  if (game.route === 'phase-10') renderPhase10Setup();
+  else renderTakeFiveHome();
+}
+function renderPhase10Setup() {
+  cleanupPeer(); state.phase10=null; state.screen='phase10-setup'; document.body.classList.remove('match-mode','platform-home','lobby-mode'); document.body.classList.add('home-mode','phase10-mode'); setAmbient(false); renderTopbar();
+  renderMarkup(app, `<section class="phase10-setup"><div class="phase10-setup-art"><div class="p10-floating-card p10-card-blue">7</div><div class="p10-floating-card p10-card-green">8</div><div class="p10-floating-card p10-card-red">10</div></div><div class="phase10-setup-copy"><span class="phase10-kicker">Phase 10 · local table</span><h1>Choose your player</h1><p>Pick a Memoji, build your phase, and be first through all ten challenges.</p><div class="memoji-grid" role="group" aria-label="Choose your Memoji">${MEMOJIS.map(avatar=>`<button class="memoji-choice ${avatar===state.phase10Avatar?'is-selected':''}" data-phase-avatar="${avatar}" aria-pressed="${avatar===state.phase10Avatar}">${avatar}</button>`).join('')}</div><button class="phase10-play" id="startPhase10">Start game <span>→</span></button><button class="phase10-back" id="backToLobby">Back to games</button></div></section>`, { nativeControls:false });
+  bindPress('[data-phase-avatar]',(_,button)=>{state.phase10Avatar=button.dataset.phaseAvatar;renderPhase10Setup();});
+  bindPress('#startPhase10',()=>{state.phase10=phase10Game(state.name,state.phase10Avatar);state.screen='phase10';renderPhase10();});
+  bindPress('#backToLobby',renderHome);
+}
+function phase10CardMarkup(item, selected=false) {
+  const special=isWild(item)?'wild':isSkip(item)?'skip':''; const label=isWild(item)?'★':isSkip(item)?'⊘':item.value;
+  return `<button class="phase10-card ${special} ${item.color||''} ${selected?'is-selected':''}" data-phase-card="${item.id}" aria-label="${isWild(item)?'Wild card':isSkip(item)?'Skip card':`${item.color} ${item.value}`}" ${state.phase10?.turn!=='play'?'aria-disabled="true"':''}><span>${label}</span><i>${special==='wild'?'WILD':special==='skip'?'SKIP':item.color}</i></button>`;
+}
+function phase10RequiredCount(phase){return [6,7,8,7,8,9,8,7,7,8][phase-1]||6;}
+function combinations(items,size,start=0,picked=[],result=[]){if(picked.length===size){result.push(picked);return result;}for(let i=start;i<=items.length-(size-picked.length);i++)combinations(items,size,i+1,picked.concat(items[i]),result);return result;}
+function phase10BotLay(player){const size=phase10RequiredCount(player.phase);const found=combinations(player.hand,size).find(cards=>phaseIsValid(player.phase,cards));if(!found)return false;const ids=new Set(found.map(item=>item.id));player.phaseCards=found;player.hand=player.hand.filter(item=>!ids.has(item.id));player.laid=true;return true;}
+function renderPhase10() {
+  const g=state.phase10; if(!g)return renderPhase10Setup(); document.body.classList.remove('home-mode','platform-home','match-mode');document.body.classList.add('phase10-mode');state.screen='phase10';renderTopbar();
+  const me=g.players[0], active=g.players[g.current]; const discard=g.discardPile.at(-1); const selected=new Set(g.selected); const isMine=g.current===0;
+  renderMarkup(app, `<section class="phase10-board"><header class="phase10-board-head"><div><span class="phase10-kicker">Round ${g.round}</span><h1>Phase ${me.phase}<small>${PHASES[me.phase-1]}</small></h1></div><div class="phase10-message ${isMine?'is-your-turn':''}">${escapeHtml(g.message)}</div><button class="phase10-exit" id="exitPhase10">Exit game</button></header><section class="phase10-opponents">${g.players.slice(1).map((player,index)=>`<article class="phase10-player ${g.current===index+1?'is-active':''}"><span class="phase10-avatar">${player.avatar}</span><div><b>${player.name}</b><small>Phase ${player.phase} · ${player.hand.length} cards</small></div><strong>${player.score}</strong>${player.laid?'<i class="phase10-done">✓</i>':''}</article>`).join('')}</section><main class="phase10-table"><div class="phase10-goal"><span>Your goal</span><strong>Phase ${me.phase}</strong><p>${PHASES[me.phase-1]}</p>${me.laid?'<b>Phase complete ✓</b>':''}</div><div class="phase10-decks"><button class="phase10-deck draw" id="phaseDraw" ${!isMine||g.turn!=='draw'?'aria-disabled="true"':''}><span>✦</span><small>Draw</small><i>${g.drawPile.length}</i></button><button class="phase10-deck discard ${discard?.color||''} ${isWild(discard)?'wild':''} ${isSkip(discard)?'skip':''}" id="phaseDiscardDraw" ${!isMine||g.turn!=='draw'?'aria-disabled="true"':''}><span>${isWild(discard)?'★':isSkip(discard)?'⊘':discard?.value}</span><small>Discard</small></button></div><div class="phase10-actions"><button id="phaseLay" ${!isMine||g.turn!=='play'||me.laid?'aria-disabled="true"':''}>Lay phase</button><button id="phaseDiscard" ${!isMine||g.turn!=='play'||g.selected.length!==1?'aria-disabled="true"':''}>Discard selected</button></div></main><section class="phase10-hand-wrap"><div class="phase10-hand-heading"><span>${me.avatar}</span><div><b>Your hand</b><small>${me.hand.length} cards · select cards to lay or discard</small></div></div><div class="phase10-hand">${me.hand.map(item=>phase10CardMarkup(item,selected.has(item.id))).join('')}</div></section></section>`, {nativeControls:false});
+  bindPress('[data-phase-card]',(_,button)=>{if(g.current!==0||g.turn!=='play')return;const id=button.dataset.phaseCard;g.selected=g.selected.includes(id)?g.selected.filter(value=>value!==id):g.selected.concat(id);renderPhase10();});
+  bindPress('#phaseDraw',()=>phase10Draw(false));bindPress('#phaseDiscardDraw',()=>phase10Draw(true));bindPress('#phaseLay',phase10Lay);bindPress('#phaseDiscard',phase10Discard);bindPress('#exitPhase10',renderHome);
+}
+function phase10Draw(fromDiscard){const g=state.phase10,player=g?.players[0];if(!g||g.current!==0||g.turn!=='draw')return;const item=fromDiscard?g.discardPile.pop():g.drawPile.pop();if(!item)return;player.hand.push(item);g.turn='play';g.message='Lay your phase or discard one card.';renderPhase10();}
+function phase10Lay(){const g=state.phase10,player=g?.players[0];if(!g||g.current!==0||g.turn!=='play'||player.laid)return;const cards=player.hand.filter(item=>g.selected.includes(item.id));if(!phaseIsValid(player.phase,cards)){g.message=`Those cards do not complete Phase ${player.phase}: ${PHASES[player.phase-1]}.`;renderPhase10();return;}const ids=new Set(cards.map(item=>item.id));player.phaseCards=cards;player.hand=player.hand.filter(item=>!ids.has(item.id));player.laid=true;g.selected=[];g.message='Phase complete! Discard one card to end your turn.';renderPhase10();}
+function phase10Discard(){const g=state.phase10,player=g?.players[0];if(!g||g.current!==0||g.turn!=='play'||g.selected.length!==1)return;const id=g.selected[0],index=player.hand.findIndex(item=>item.id===id);if(index<0)return;const [discard]=player.hand.splice(index,1);g.discardPile.push(discard);g.selected=[];if(isSkip(discard))g.skipped=1;phase10EndTurn();}
+function phase10EndTurn(){const g=state.phase10,player=g.players[g.current];if(player.hand.length===0)return phase10FinishRound(player);g.current=(g.current+1)%g.players.length;if(g.skipped===g.current){g.message=`${g.players[g.current].name} was skipped!`;g.skipped=null;g.current=(g.current+1)%g.players.length;}g.turn='draw';if(g.current===0){g.message='Your turn: draw a card.';renderPhase10();}else{g.message=`${g.players[g.current].name} is thinking…`;renderPhase10();window.setTimeout(phase10BotTurn,650);}}
+function phase10BotTurn(){const g=state.phase10;if(!g||g.current===0||g.finished)return;const player=g.players[g.current];const drawn=g.drawPile.pop();if(drawn)player.hand.push(drawn);phase10BotLay(player);const candidates=player.hand.filter(item=>!isWild(item)&&!isSkip(item));const discard=(candidates.length?candidates:player.hand)[Math.floor(Math.random()*(candidates.length?candidates.length:player.hand.length))];if(discard){player.hand.splice(player.hand.indexOf(discard),1);g.discardPile.push(discard);if(isSkip(discard))g.skipped=(g.current+1)%g.players.length;}phase10EndTurn();}
+function phase10FinishRound(winner){const g=state.phase10;g.players.forEach(player=>{if(player!==winner)player.score+=player.hand.reduce((total,item)=>total+cardPoints(item),0);});winner.phase+=1;if(winner.phase>10){g.finished=true;g.message=`${winner.name} completed all ten phases!`;renderPhase10();return;}const next=phase10Game(state.name,state.phase10Avatar);next.players.forEach((player,index)=>{player.phase=g.players[index].phase;player.score=g.players[index].score;});next.round=g.round+1;next.message=`${winner.name} went out. New round!`;state.phase10=next;renderPhase10();}
 function renderTakeFiveHome() {
   cleanupPeer(); document.body.classList.remove('match-mode','lobby-mode','platform-home'); document.body.classList.add('home-mode','take5-entry-mode'); state.screen='take5-home'; state.game=null; state.selected=null;setAmbient(true);
   renderTopbar();
