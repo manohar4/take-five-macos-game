@@ -43,7 +43,7 @@ export function gameArtwork(game) {
 
 export function GameCard(game) {
   const available = game.status === 'available';
-  return `<article class="game-card game-card--${game.id}">
+  return `<article class="game-card game-card--${game.id}" ${available ? `data-game-tile="play" role="button" tabindex="0" aria-label="Play ${game.name}"` : ''}>
     ${gameArtwork(game)}
     <div class="game-card-copy">
       <div class="game-card-meta"><span>${game.category}</span>${gameStatusBadge(game)}</div>

@@ -36,9 +36,14 @@ else {renderHome();if(resumeCode&&savedGuestRoom?.roomId===resumeCode){state.res
 
 function readStored(key){try{return JSON.parse(localStorage.getItem(key)||'null')}catch{return null}}
 function escapeHtml(value) { return String(value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
-function renderMarkup(container, markup) {
+function renderMarkup(container, markup, { nativeControls = true } = {}) {
   const animate = state.screenTransition && !matchMedia('(prefers-reduced-motion: reduce)').matches;
-  clearNativeControls(container); container.innerHTML = markup; mountNativeControls(container);
+  clearNativeControls(container);
+  container.innerHTML = markup;
+  if (nativeControls) {
+    try { mountNativeControls(container); }
+    catch (error) { console.error('Could not mount React Native Web controls.', error); }
+  }
   if (animate) {
     container.animate([{ opacity: 0, transform: 'translateY(10px) scale(.992)' }, { opacity: 1, transform: 'translateY(0) scale(1)' }], { duration: 300, easing: 'cubic-bezier(.2,.78,.25,1)' });
     state.screenTransition = false;
@@ -46,7 +51,14 @@ function renderMarkup(container, markup) {
 }
 function bindPress(target, handler) {
   const elements = typeof target === 'string' ? document.querySelectorAll(target) : [target];
-  elements.forEach(element => element?.addEventListener('rnpress', event => { playSound('tap'); handler(event, element); }));
+  elements.forEach(element => {
+    if (!element) return;
+    const respond = event => { playSound('tap'); handler(event, element); };
+    element.addEventListener('rnpress', respond);
+    element.addEventListener('click', event => {
+      if (!element.closest('.rn-control-root')) respond(event);
+    });
+  });
 }
 function soundButtonMarkup() { const enabled=isSoundEnabled();return `<button class="icon-button sound-toggle" id="soundToggle" aria-label="${enabled?'Mute sound':'Enable sound'}" aria-pressed="${enabled}" title="${enabled?'Mute sound':'Enable sound'}"><span class="sound-toggle-glyph" aria-hidden="true">♪</span><span class="sound-toggle-state" aria-hidden="true">${enabled?'':'×'}</span></button>`; }
 function bindSoundToggle() { bindPress('#soundToggle',()=>{toggleSound();renderTopbar();}); }
@@ -68,7 +80,7 @@ function renderTopbar() {
   if (brand) brand.innerHTML = `<span class="brand-mark">CG</span><span>Card <span class="brand-dot">Games</span></span>`;
   if (isPlatformHome) {
     roster.innerHTML = '';
-    renderMarkup(right, `<nav class="platform-nav" aria-label="Platform navigation"><button class="platform-nav-link is-active" data-platform-nav="home">Home</button><button class="platform-nav-link" data-platform-nav="games">Games</button><button class="platform-nav-play" data-platform-nav="take5">Play Take 5 <span>→</span></button></nav>`);
+    renderMarkup(right, `<div class="platform-profile" aria-label="Player profile"><span class="platform-avatar">${escapeHtml((state.name || 'P').slice(0, 1).toUpperCase())}</span><span class="platform-profile-copy"><b>${escapeHtml(state.name || 'Player')}</b><small>Ready to play</small></span></div>`, { nativeControls: false });
     bindPress('[data-platform-nav]',(_,button)=>{
       const action=button.dataset.platformNav;
       if(action==='take5')renderTakeFiveHome();
@@ -142,22 +154,24 @@ function renderTopbar() {
 }
 function renderHome() {
   cleanupPeer(); document.body.classList.remove('match-mode','lobby-mode','take5-entry-mode'); document.body.classList.add('home-mode','platform-home'); state.screen='home'; state.game=null; state.selected=null;setAmbient(true);
-  renderTopbar();
-  renderMarkup(app, `<section class="platform-homepage">
-    <section class="platform-hero" aria-labelledby="platformHeroTitle">
-      <div class="platform-hero-copy"><span class="platform-kicker">A table for every mood</span><h1 id="platformHeroTitle">Every Game Has<br><em>a Story.</em></h1><p>Discover, play, and compete with friends. Your favorite games are all in one place.</p><button class="platform-primary" id="exploreGames">Explore games <span>↓</span></button></div>
-      <div class="platform-hero-art" aria-hidden="true"><div class="hero-card hero-card--gold">10</div><div class="hero-card hero-card--green">33</div><div class="hero-card hero-card--blue">55</div><span class="hero-gem hero-gem--one"></span><span class="hero-gem hero-gem--two"></span></div>
-    </section>
-    <section class="platform-featured" aria-labelledby="featuredTitle">
-      <div class="featured-art">${gameArtwork(featuredGame)}</div>
-      <div class="featured-copy"><div class="featured-meta"><span>Featured game</span>${gameStatusBadge(featuredGame)}</div><h2 id="featuredTitle">Take 5</h2><p>${featuredGame.featuredDescription}</p><button class="platform-primary" data-game-action="play" data-game-id="take-5">Play now <span>→</span></button></div>
-      <div class="featured-detail"><span>2–10 players</span><span>10 cards each</span><span>15 min</span></div>
-    </section>
-    <section class="platform-library" id="games" aria-labelledby="gamesTitle"><div class="section-heading"><span>Game library</span><h2 id="gamesTitle">Explore Games</h2><p>Find your next favorite game.</p></div><div class="game-library-grid">${GameLibrary()}</div></section>
-    <footer class="platform-footer"><span class="platform-footer-brand">Card Games</span><span>Your favorite games. One place. Endless fun.</span></footer>
-  </section>`);
-  bindPress('#exploreGames',()=>document.querySelector('#games')?.scrollIntoView({behavior:'smooth',block:'start'}));
-  bindPress('[data-game-action]',(_,button)=>{if(button.dataset.gameAction==='play')renderTakeFiveHome();else say(`${button.dataset.gameId==='phase-10'?'Phase 10':'Splendor'} is coming soon.`);});
+  try {
+    if (!featuredGame || typeof GameLibrary !== 'function') throw new Error('The game registry is unavailable.');
+    renderTopbar();
+    renderMarkup(app, `<section class="platform-homepage">
+      <section class="platform-welcome" aria-labelledby="platformWelcomeTitle"><div><h1 id="platformWelcomeTitle">Ready to play?</h1><p>Pick your game. Bring your friends. Let the fun begin.</p></div><span class="platform-online"><i></i> Games ready</span></section>
+      <section class="platform-featured" data-game-tile="play" role="button" tabindex="0" aria-label="Play ${escapeHtml(featuredGame.name)}" aria-labelledby="featuredTitle"><div class="featured-art">${gameArtwork(featuredGame)}</div><div class="featured-copy"><div class="featured-meta"><span>Featured game</span>${gameStatusBadge(featuredGame)}</div><h2 id="featuredTitle">${escapeHtml(featuredGame.name)}</h2><p>${featuredGame.featuredDescription}</p><button class="platform-primary" data-game-action="play" data-game-id="${featuredGame.id}">Play now <span>→</span></button></div><div class="featured-detail"><span>2–10 players</span><span>10 cards each</span><span>15 min</span></div></section>
+      <section class="platform-library" id="games" aria-labelledby="gamesTitle"><div class="section-heading"><div><span>Game library</span><h2 id="gamesTitle">Your Game Collection</h2><p>Choose a game and start playing.</p></div></div><div class="game-library-grid">${GameLibrary()}</div></section>
+    </section>`, { nativeControls: false });
+    bindPress('[data-game-action]',(_,button)=>{if(button.dataset.gameAction==='play')renderTakeFiveHome();else say(`${button.dataset.gameId==='phase-10'?'Phase 10':'Splendor'} is coming soon.`);});
+    document.querySelectorAll('[data-game-tile="play"]').forEach(tile => {
+      tile.addEventListener('click', event => { if (!event.target.closest('[data-game-action]')) renderTakeFiveHome(); });
+      tile.addEventListener('keydown', event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); renderTakeFiveHome(); } });
+    });
+  } catch (error) {
+    console.error('Could not render the Card Games lobby.', error);
+    renderMarkup(app, `<section class="platform-fallback" role="alert"><span>Card Games</span><h1>We couldn’t load the game lobby.</h1><p>${escapeHtml(error.message || 'Please try again.')}</p><button class="platform-primary" id="retryLobby">Try again <span>↻</span></button></section>`, { nativeControls: false });
+    bindPress('#retryLobby', renderHome);
+  }
 }
 function renderTakeFiveHome() {
   cleanupPeer(); document.body.classList.remove('match-mode','lobby-mode','platform-home'); document.body.classList.add('home-mode','take5-entry-mode'); state.screen='take5-home'; state.game=null; state.selected=null;setAmbient(true);
