@@ -1,6 +1,7 @@
 import { clearNativeControls, mountNativeControls } from './rn-controls.js';
 import { isSoundEnabled, playSound, setAmbient, toggleSound, unlockAudio } from './audio.js';
 import { isNativeApp, publicGameUrl } from './native-app.js';
+import { featuredGame, GameLibrary, gameArtwork, gameStatusBadge } from './games.js';
 
 const app = document.querySelector('#app');
 const rulesDialog = document.querySelector('#rulesDialog');
@@ -22,7 +23,7 @@ function resumeRoomConnection(){if(!state.peer)return;if(state.peer.disconnected
 window.addEventListener('online',resumeRoomConnection);
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)resumeRoomConnection();});
 
-document.querySelector('#homeLink').addEventListener('click', e => { e.preventDefault(); if (state.screen === 'game' || state.screen === 'result') leaveToHome(); else renderHome(); });
+document.querySelector('#homeLink').addEventListener('click', e => { e.preventDefault(); renderHome(); });
 mountNativeControls(rulesDialog);
 bindPress('.dialog-close', () => rulesDialog.close());
 if (params.get('room')) { const invite=params.get('room'); state.tab = 'rooms'; state.roomPrefill = /^\d{4}$/.test(invite) ? invite : (invite.match(/^take5-(\d{4})$/)?.[1] || ''); }
@@ -59,9 +60,23 @@ function playerAvatar(player,index) { return player.human ? ['🧑🏻','👩�
 function randomDeck() { return Array.from({length:104}, (_,i)=>i+1).sort(()=>Math.random()-.5); }
 function setName() { state.name = document.querySelector('#playerName')?.value.trim() || 'You'; localStorage.setItem('take5-name', state.name); }
 function renderTopbar() {
+  const brand = document.querySelector('#homeLink');
   const roster = document.querySelector('#headerRoster');
   const right = document.querySelector('#topbarRight');
-  const live = state.screen !== 'home';
+  const isPlatformHome = state.screen === 'home';
+  const live = ['lobby','game','result'].includes(state.screen);
+  if (brand) brand.innerHTML = `<span class="brand-mark">CG</span><span>Card <span class="brand-dot">Games</span></span>`;
+  if (isPlatformHome) {
+    roster.innerHTML = '';
+    renderMarkup(right, `<nav class="platform-nav" aria-label="Platform navigation"><button class="platform-nav-link is-active" data-platform-nav="home">Home</button><button class="platform-nav-link" data-platform-nav="games">Games</button><button class="platform-nav-play" data-platform-nav="take5">Play Take 5 <span>→</span></button></nav>`);
+    bindPress('[data-platform-nav]',(_,button)=>{
+      const action=button.dataset.platformNav;
+      if(action==='take5')renderTakeFiveHome();
+      else if(action==='games')document.querySelector('#games')?.scrollIntoView({behavior:'smooth',block:'start'});
+      else window.scrollTo({top:0,behavior:'smooth'});
+    });
+    return;
+  }
   const players = state.screen === 'lobby' ? state.players : (state.game?.players || state.players);
   const gameActive = !!state.game && ['game','result'].includes(state.screen);
   if (roster) roster.innerHTML = live ? players.map((p, index) => {
@@ -126,7 +141,26 @@ function renderTopbar() {
   bindPress('.menu-reaction-option',(_,button)=>sendReaction(button.dataset.reaction));
 }
 function renderHome() {
-  cleanupPeer(); document.body.classList.remove('match-mode','lobby-mode'); document.body.classList.add('home-mode'); state.screen='home'; state.game=null; state.selected=null;setAmbient(true);
+  cleanupPeer(); document.body.classList.remove('match-mode','lobby-mode','take5-entry-mode'); document.body.classList.add('home-mode','platform-home'); state.screen='home'; state.game=null; state.selected=null;setAmbient(true);
+  renderTopbar();
+  renderMarkup(app, `<section class="platform-homepage">
+    <section class="platform-hero" aria-labelledby="platformHeroTitle">
+      <div class="platform-hero-copy"><span class="platform-kicker">A table for every mood</span><h1 id="platformHeroTitle">Every Game Has<br><em>a Story.</em></h1><p>Discover, play, and compete with friends. Your favorite games are all in one place.</p><button class="platform-primary" id="exploreGames">Explore games <span>↓</span></button></div>
+      <div class="platform-hero-art" aria-hidden="true"><div class="hero-card hero-card--gold">10</div><div class="hero-card hero-card--green">33</div><div class="hero-card hero-card--blue">55</div><span class="hero-gem hero-gem--one"></span><span class="hero-gem hero-gem--two"></span></div>
+    </section>
+    <section class="platform-featured" aria-labelledby="featuredTitle">
+      <div class="featured-art">${gameArtwork(featuredGame)}</div>
+      <div class="featured-copy"><div class="featured-meta"><span>Featured game</span>${gameStatusBadge(featuredGame)}</div><h2 id="featuredTitle">Take 5</h2><p>${featuredGame.featuredDescription}</p><button class="platform-primary" data-game-action="play" data-game-id="take-5">Play now <span>→</span></button></div>
+      <div class="featured-detail"><span>2–10 players</span><span>10 cards each</span><span>15 min</span></div>
+    </section>
+    <section class="platform-library" id="games" aria-labelledby="gamesTitle"><div class="section-heading"><span>Game library</span><h2 id="gamesTitle">Explore Games</h2><p>Find your next favorite game.</p></div><div class="game-library-grid">${GameLibrary()}</div></section>
+    <footer class="platform-footer"><span class="platform-footer-brand">Card Games</span><span>Your favorite games. One place. Endless fun.</span></footer>
+  </section>`);
+  bindPress('#exploreGames',()=>document.querySelector('#games')?.scrollIntoView({behavior:'smooth',block:'start'}));
+  bindPress('[data-game-action]',(_,button)=>{if(button.dataset.gameAction==='play')renderTakeFiveHome();else say(`${button.dataset.gameId==='phase-10'?'Phase 10':'Splendor'} is coming soon.`);});
+}
+function renderTakeFiveHome() {
+  cleanupPeer(); document.body.classList.remove('match-mode','lobby-mode','platform-home'); document.body.classList.add('home-mode','take5-entry-mode'); state.screen='take5-home'; state.game=null; state.selected=null;setAmbient(true);
   renderTopbar();
   const nameValue = escapeHtml(state.name);
   renderMarkup(app, `<section class="landing">
@@ -165,7 +199,7 @@ function renderHome() {
       </div>
     </section>
   </section>`);
-  bindPress('.setup-tab',(_,b)=>{state.tab=b.dataset.tab;renderHome()});
+  bindPress('.setup-tab',(_,b)=>{state.tab=b.dataset.tab;renderTakeFiveHome()});
   document.querySelector('#botCount')?.addEventListener('change',e=>state.botCount=+e.target.value);
   bindPress('#startBots',()=>{setNameFrom('#playerName');startLocal()});
   bindPress('#hostRoom',()=>{setNameFrom('#roomPlayerName');hostRoom()});
