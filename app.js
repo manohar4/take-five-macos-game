@@ -192,6 +192,24 @@ function phase10AvatarMarkup(avatar, extraClass='') {
   const asset=({ '🧑🏻':'player', '🦊':'fox', '🐻':'bear', '🐸':'frog' })[avatar] || 'player';
   return `<span class="avatar-3d avatar-3d--${asset} ${extraClass}" aria-hidden="true"></span>`;
 }
+// iPhone WebViews can delay a synthetic click after touch. These controls respond
+// on pointer release, then use click as a fallback; each render accepts one event.
+function bindPhase10Control(target, handler) {
+  const elements=typeof target==='string'?document.querySelectorAll(target):[target];
+  elements.forEach(element=>{
+    if(!element)return;
+    let handled=false;
+    const activate=event=>{
+      if(handled||element.getAttribute('aria-disabled')==='true')return;
+      handled=true;
+      event.preventDefault();
+      playSound('tap');
+      handler(event,element);
+    };
+    element.addEventListener('pointerup',activate);
+    element.addEventListener('click',activate);
+  });
+}
 function phase10CardMarkup(item, selected=false) {
   const special=isWild(item)?'wild':isSkip(item)?'skip':''; const label=isWild(item)?'★':isSkip(item)?'⊘':item.value;
   const corner=special==='wild'?'★':special==='skip'?'⊘':item.value;
@@ -204,8 +222,8 @@ function renderPhase10() {
   const g=state.phase10; if(!g)return renderPhase10Setup(); document.body.classList.remove('home-mode','platform-home','match-mode');document.body.classList.add('phase10-mode');state.screen='phase10';renderTopbar();
   const me=g.players[0], active=g.players[g.current]; const discard=g.discardPile.at(-1); const selected=new Set(g.selected); const isMine=g.current===0;
   renderMarkup(app, `<section class="phase10-board"><header class="phase10-board-head"><div><span class="phase10-kicker">Round ${g.round}</span><h1>Phase ${me.phase}<small>${PHASES[me.phase-1]}</small></h1></div><div class="phase10-message ${isMine?'is-your-turn':''}">${escapeHtml(g.message)}</div><button class="phase10-exit" id="exitPhase10">Exit game</button></header><section class="phase10-opponents">${g.players.slice(1).map((player,index)=>`<article class="phase10-player ${g.current===index+1?'is-active':''}"><span class="phase10-avatar">${phase10AvatarMarkup(player.avatar)}</span><div><b>${player.name}</b><small>Phase ${player.phase} · ${player.hand.length} cards</small></div><strong>${player.score}</strong>${player.laid?'<i class="phase10-done">✓</i>':''}</article>`).join('')}</section><main class="phase10-table"><div class="phase10-goal"><span>Your goal</span><strong>Phase ${me.phase}</strong><p>${PHASES[me.phase-1]}</p>${me.laid?'<b>Phase complete ✓</b>':''}</div><div class="phase10-decks"><button class="phase10-deck draw" id="phaseDraw" ${!isMine||g.turn!=='draw'?'aria-disabled="true"':''}><span>✦</span><small>Draw</small><i>${g.drawPile.length}</i></button><button class="phase10-deck discard ${discard?.color||''} ${isWild(discard)?'wild':''} ${isSkip(discard)?'skip':''}" id="phaseDiscardDraw" ${!isMine||g.turn!=='draw'?'aria-disabled="true"':''}><span>${isWild(discard)?'★':isSkip(discard)?'⊘':discard?.value}</span><small>Discard</small></button></div><div class="phase10-actions"><button id="phaseLay" ${!isMine||g.turn!=='play'||me.laid?'aria-disabled="true"':''}>Lay phase</button><button id="phaseDiscard" ${!isMine||g.turn!=='play'||g.selected.length!==1?'aria-disabled="true"':''}>Discard selected</button></div></main><section class="phase10-hand-wrap"><div class="phase10-hand-heading"><span>${phase10AvatarMarkup(me.avatar)}</span><div><b>Your hand</b><small>${me.hand.length} cards · select cards to lay or discard</small></div></div><div class="phase10-hand">${me.hand.map(item=>phase10CardMarkup(item,selected.has(item.id))).join('')}</div></section></section>`, {nativeControls:false});
-  bindPress('[data-phase-card]',(_,button)=>{if(g.current!==0||g.turn!=='play')return;const id=button.dataset.phaseCard;g.selected=g.selected.includes(id)?g.selected.filter(value=>value!==id):g.selected.concat(id);renderPhase10();});
-  bindPress('#phaseDraw',()=>phase10Draw(false));bindPress('#phaseDiscardDraw',()=>phase10Draw(true));bindPress('#phaseLay',phase10Lay);bindPress('#phaseDiscard',phase10Discard);bindPress('#exitPhase10',renderHome);
+  bindPhase10Control('[data-phase-card]',(_,button)=>{if(g.current!==0||g.turn!=='play')return;const id=button.dataset.phaseCard;g.selected=g.selected.includes(id)?g.selected.filter(value=>value!==id):g.selected.concat(id);renderPhase10();});
+  bindPhase10Control('#phaseDraw',()=>phase10Draw(false));bindPhase10Control('#phaseDiscardDraw',()=>phase10Draw(true));bindPhase10Control('#phaseLay',phase10Lay);bindPhase10Control('#phaseDiscard',phase10Discard);bindPhase10Control('#exitPhase10',renderHome);
 }
 function phase10Draw(fromDiscard){const g=state.phase10,player=g?.players[0];if(!g||g.current!==0||g.turn!=='draw')return;const item=fromDiscard?g.discardPile.pop():g.drawPile.pop();if(!item)return;player.hand.push(item);g.turn='play';g.message='Lay your phase or discard one card.';renderPhase10();}
 function phase10Lay(){const g=state.phase10,player=g?.players[0];if(!g||g.current!==0||g.turn!=='play'||player.laid)return;const cards=player.hand.filter(item=>g.selected.includes(item.id));if(!phaseIsValid(player.phase,cards)){g.message=`Those cards do not complete Phase ${player.phase}: ${PHASES[player.phase-1]}.`;renderPhase10();return;}const ids=new Set(cards.map(item=>item.id));player.phaseCards=cards;player.hand=player.hand.filter(item=>!ids.has(item.id));player.laid=true;g.selected=[];g.message='Phase complete! Discard one card to end your turn.';renderPhase10();}

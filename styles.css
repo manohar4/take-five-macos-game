@@ -767,3 +767,8 @@ body.phase10-mode{min-height:100svh;overflow:auto;background:#2b245c;color:#fff}
 @keyframes phase-card-settle{0%{transform:translateY(0) rotate(calc((var(--i, 5) - 5)*1deg)) scale(.96)}65%{transform:translateY(-21px) rotate(0) scale(1.06)}100%{transform:translateY(-17px) rotate(0) scale(1.035)}}
 @media(prefers-reduced-motion:reduce){.phase10-card,.phase10-actions button,.phase10-play,.phase10-exit,.phase10-deck,.memoji-choice{transition:none!important;animation:none!important}}
 @media(max-width:760px){.phase10-avatar{width:32px;height:32px}.memoji-choice{border-radius:17px}.phase10-table{border-width:6px;box-shadow:inset 0 2px #fff8,inset 0 -10px #064b4670,0 7px 0 #0b514f,0 18px 27px var(--toy-shadow)}.phase10-card:hover:not([aria-disabled="true"]){transform:translateY(-6px) rotate(calc((var(--i, 5) - 5)*1deg))}}
+
+/* Use the supplied full-art special cards on the discard pile too. */
+.phase10-deck.wild,.phase10-deck.skip{background-color:#171717;background-position:center;background-repeat:no-repeat;background-size:100% 100%;border-color:transparent}
+.phase10-deck.wild{background-image:url("assets/phase10/card-wild.png")}.phase10-deck.skip{background-image:url("assets/phase10/card-skip.png")}
+.phase10-deck.wild>span,.phase10-deck.skip>span,.phase10-deck.wild small,.phase10-deck.skip small{display:none}
