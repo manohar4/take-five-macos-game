@@ -6,7 +6,8 @@ export const PHASES = [
   '7 cards of one color', '1 set of 5 + 1 set of 2', '1 set of 5 + 1 set of 3'
 ];
 
-export const MEMOJIS = ['🧑🏻', '👩🏽', '🧔🏼', '👩🏻', '🧑🏾', '👩🏼', '🧑🏽', '👨🏾'];
+// These are intentionally a compact cast: every choice has a matching 3D asset.
+export const MEMOJIS = ['🧑🏻', '🦊', '🐻', '🐸'];
 
 let nextId = 0;
 const card = (value, color = null) => ({ id: `phase-card-${nextId++}`, value, color });
