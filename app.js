@@ -236,7 +236,7 @@ function renderTakeFiveHome() {
   renderTopbar();
   const nameValue = escapeHtml(state.name);
   renderMarkup(app, `<section class="landing">
-    <div class="hero-copy"><div class="eyebrow">A LITTLE GAME. A LOT OF BULL.</div><h1>Take a card.<br /><em>Take five.</em></h1><p>Pick a number. Keep your cool. Try not to collect a whole row of bulls. That’s the game.</p>
+    <div class="hero-copy"><div class="eyebrow">TAKE 5 · QUICK TABLE</div><h1>Play a clever<br /><em>card game.</em></h1><p>Choose a card. Avoid the bulls. Bring friends.</p>
       <div class="hero-points"><span><i class="tiny-star">✳</i> 2–10 players</span><span><i class="tiny-star">✳</i> 10 cards each</span><span><i class="tiny-star">✳</i> maximum mischief</span></div>
     <div class="table-scene" aria-hidden="true"><div class="scene-felt"></div><div class="scene-card c1"><strong>12</strong>${bullIconMarkup()}</div><div class="scene-card c2"><strong>38</strong>${bullIconMarkup()}</div><div class="scene-card c3"><strong>64</strong>${bullIconMarkup()}</div><div class="scene-card c4"><strong>91</strong>${bullIconMarkup()}</div><div class="decor-cow">🐮</div><div class="scene-caption">a very serious card table</div></div>
     </div>
