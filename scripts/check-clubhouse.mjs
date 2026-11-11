@@ -20,6 +20,12 @@ try {
     assert.equal(targets.length,10);
     const middle=targets[5];
     assert(middle.x>0 && middle.x<width && middle.y>0 && middle.y<height);
+    await page.evaluate(()=>{window.selectionCanvas=document.querySelector('.clubhouse-scene');});
+    for(const index of [2,4,6]){
+      await page.mouse.click(targets[index].x,targets[index].y);
+      await page.waitForTimeout(230);
+      assert(await page.evaluate(()=>document.querySelector('.clubhouse-scene')===window.selectionCanvas),'Card selection must preserve the live WebGL canvas');
+    }
     await page.mouse.click(middle.x,middle.y);
     assert.equal(await page.locator('.hand-card.selected').count(),1);
     const overflow=await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth);
