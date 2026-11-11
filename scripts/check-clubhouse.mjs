@@ -15,17 +15,18 @@ try {
     await page.waitForTimeout(700);
     assert.equal(await page.locator('.rows .row-lane').count(),4);
     assert.equal(await page.locator('.hand-card').count(),10);
-    const first=page.locator('.hand-card').first();
-    await first.click();
+    await page.waitForFunction(()=>Number(document.querySelector('.clubhouse-scene')?.dataset.textures)>=14);
+    const targets=JSON.parse(await page.locator('.clubhouse-scene').getAttribute('data-hand-targets'));
+    assert.equal(targets.length,10);
+    const middle=targets[5];
+    assert(middle.x>0 && middle.x<width && middle.y>0 && middle.y<height);
+    await page.mouse.click(middle.x,middle.y);
     assert.equal(await page.locator('.hand-card.selected').count(),1);
     const overflow=await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth);
     assert.equal(overflow,false,'page must not overflow horizontally');
     const button=await page.locator('#playCard').boundingBox();
     assert(button && button.y+button.height<=height,'Play must remain visible');
-    for(const c of await page.locator('.hand-card').all()) {
-      const bounds=await c.boundingBox();
-      assert(bounds.y+bounds.height<=height,'Hand card must remain above the bottom edge');
-    }
+    for(const c of targets)assert(c.x>=0 && c.x<=width && c.y<height,'3D hand must fit the viewport');
     assert.equal(errors.length,0,errors.join('\n'));
     await page.screenshot({path:`artifacts/clubhouse/${width}x${height}.png`});
     await page.locator('#playCard').click();

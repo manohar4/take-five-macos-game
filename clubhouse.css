@@ -1,33 +1,21 @@
-/* Cozy Clubhouse: game controls over a real Three.js room and table. */
-.clubhouse-scene{position:absolute;inset:0;width:100%;height:100%;z-index:0;pointer-events:none}
-.match-mode:not(.lobby-mode) .page-shell{isolation:isolate;background:#211a2a!important}
-.match-mode:not(.lobby-mode) #app{position:relative;z-index:1}
-.match-mode:not(.lobby-mode) .game-layout::before{display:none!important}
-.match-mode:not(.lobby-mode) .topbar{background:linear-gradient(#241c30f0,#241c3060);border:0}
-.match-mode:not(.lobby-mode) .game-layout{padding-top:140px;gap:12px;padding-left:17px;padding-right:17px;grid-template-rows:minmax(250px,1fr) 174px}
-.match-mode:not(.lobby-mode) .tabletop{background:transparent!important;box-shadow:none!important;border:0!important;padding:10px 9px}
-.match-mode:not(.lobby-mode) .rows{gap:0}
-.match-mode:not(.lobby-mode) .row-lane{background:transparent!important;box-shadow:none!important;border:0!important;border-radius:0;grid-template-rows:12px 1fr;padding:5px 0;position:relative}
-.match-mode:not(.lobby-mode) .row-lane::after{display:none}
-.match-mode:not(.lobby-mode) .row-label{position:static;font:700 8px var(--sans);color:#d7c69f}
-.match-mode:not(.lobby-mode) .row-total{position:static!important;transform:none!important;min-width:33px!important;min-height:27px!important;background:linear-gradient(#ffe19b,#d5a740);color:#382713;border-color:#ffe3a1}
-.match-mode:not(.lobby-mode) .playing-card{width:min(43px,calc((100% - 10px)/5));max-height:65px;border:1px solid #fff7dc;box-shadow:0 3px 0 #a48e6e,0 6px 6px #090d2370;border-radius:5px}
-.match-mode:not(.lobby-mode) .header-roster{position:absolute;top:64px;left:12px;right:12px;width:auto!important;max-width:none!important;display:flex;justify-content:flex-start;gap:8px;overflow-x:auto;padding:4px 2px 8px;scrollbar-width:none}
-.match-mode:not(.lobby-mode) .header-player{flex:0 0 auto;min-width:83px;max-width:94px;background:linear-gradient(#fff2d5,#d7bb91);color:#342b34;border-color:#e8cb90;box-shadow:0 3px 0 #5c3d2b}
-.match-mode:not(.lobby-mode) .header-player .header-avatar{font-size:0;background:radial-gradient(#ffe9b8,#b47e44);border:2px solid #f5d79a;background-size:contain;background-repeat:no-repeat;background-position:center;width:34px;height:34px;flex-shrink:0}
-.match-mode:not(.lobby-mode) .header-player:nth-child(1) .header-avatar{background-image:url('assets/3d/avatar-player.png')}.match-mode:not(.lobby-mode) .header-player:nth-child(2) .header-avatar{background-image:url('assets/3d/avatar-fox.png')}.match-mode:not(.lobby-mode) .header-player:nth-child(3) .header-avatar{background-image:url('assets/3d/avatar-bear.png')}.match-mode:not(.lobby-mode) .header-player:nth-child(4) .header-avatar{background-image:url('assets/3d/avatar-frog.png')}
-.match-mode:not(.lobby-mode) .header-player-copy b{font-size:9px;color:#38293b}.match-mode:not(.lobby-mode) .header-player-copy small{font-size:8px}.match-mode:not(.lobby-mode) .opponent-cards{display:none}
-.match-mode:not(.lobby-mode) .header-player.is-you{display:none}.match-mode:not(.lobby-mode) .header-player{min-width:105px;max-width:112px}.match-mode:not(.lobby-mode) .header-player-copy{display:grid!important;min-width:0}.match-mode:not(.lobby-mode) .header-player-copy b{display:block!important;max-width:45px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.match-mode:not(.lobby-mode) .game-bottom{padding:10px 5px 3px;border:0;background:linear-gradient(#4a3029e8,#261d2bf5);box-shadow:inset 0 2px #bf915e66,0 -5px 16px #11122566;border-radius:23px 23px 0 0;display:flex;flex-direction:column}
-.match-mode:not(.lobby-mode) .hand-area{order:2;width:100%}
-.match-mode:not(.lobby-mode) .hand-heading{padding:0 2px;margin-top:5px;height:26px;min-height:26px}.match-mode:not(.lobby-mode) .hand-heading h2{font-size:12px;white-space:nowrap}
-.match-mode:not(.lobby-mode) .turn-side{position:static;display:flex;align-items:center;justify-content:space-between;gap:8px;order:1;padding:0 3px;width:100%}
-.match-mode:not(.lobby-mode) .turn-state{display:block;font-size:10px;color:#ffe9be}.match-mode:not(.lobby-mode) .turn-message{display:none}
-.match-mode:not(.lobby-mode) .play-button{min-height:44px;min-width:116px;border-radius:18px;font-size:13px;background:linear-gradient(#ffe38a,#efa926);box-shadow:inset 0 2px #fff3b3,0 4px 0 #9c641c;color:#402a13}
-.match-mode:not(.lobby-mode) .hand{height:82px;align-items:flex-end;padding:4px 2px 7px}.match-mode:not(.lobby-mode) .hand-card{width:42px;margin-left:-12px;box-shadow:0 3px 0 #bda67f,0 7px 9px #0c0a2170}
-.match-mode:not(.lobby-mode) .hand-card.selected{outline:2px solid #ffe498;box-shadow:0 0 12px #e8af3c80;transform:translateY(-14px) rotate(0)}
-.match-mode:not(.lobby-mode) .hand-card{height:63px!important;min-height:0;--hand-card-height:63px}
-.match-mode:not(.lobby-mode) .game-bottom{padding-bottom:20px;overflow:visible}.match-mode:not(.lobby-mode) .game-layout{padding-bottom:calc(22px + env(safe-area-inset-bottom))}
-.match-mode:not(.lobby-mode) .header-player .header-avatar{width:43px;height:43px}.match-mode:not(.lobby-mode) .header-player{min-height:57px;min-width:106px;padding:4px;gap:3px;border-radius:20px}.match-mode:not(.lobby-mode) .header-roster{padding-bottom:8px}
-.match-mode:not(.lobby-mode) .header-player-score{min-width:25px!important;padding:3px!important;font-size:8px}.match-mode:not(.lobby-mode) .header-player-score .bull-icon{width:11px}
-@media(max-height:730px){.match-mode:not(.lobby-mode) .game-layout{padding-top:123px;grid-template-rows:minmax(200px,1fr) 160px}.match-mode:not(.lobby-mode) .header-roster{top:57px}.match-mode:not(.lobby-mode) .playing-card{width:34px;max-height:51px}}
+/* World-space Three.js scene with a small accessible HTML action overlay. */
+.match-mode:not(.lobby-mode) .page-shell{isolation:isolate;background:#292238!important;position:relative}
+.clubhouse-scene{position:absolute;inset:0;width:100%;height:100%;z-index:1;touch-action:manipulation}
+.clubhouse-ready #app{position:absolute;inset:0;z-index:2;pointer-events:none}
+.clubhouse-ready .game-layout{padding:0!important;background:none!important;display:block!important}
+.clubhouse-ready .game-layout::before{display:none!important}
+.clubhouse-ready .tabletop,.clubhouse-ready .hand-area{position:absolute!important;width:1px!important;height:1px!important;overflow:hidden!important;clip-path:inset(50%);opacity:0;pointer-events:none}
+.clubhouse-ready .topbar{z-index:4;height:60px!important;padding:7px 12px!important;background:linear-gradient(#241a2ac9,transparent);border:0}
+.clubhouse-ready .header-roster{display:none!important}
+.clubhouse-ready .brand>span:not(.brand-mark){display:block!important;color:#ffe8bc;font-size:17px;white-space:nowrap}.clubhouse-ready .brand{gap:7px}.clubhouse-ready .brand-mark{width:31px;height:35px;background:#75472c;box-shadow:inset 0 2px #e7b66e,0 3px #351e19}
+.clubhouse-ready .game-menu-trigger{width:44px;height:44px;border-color:#dfb575;background:linear-gradient(#986437,#58351e)}
+.clubhouse-ready .game-bottom{position:absolute!important;bottom:max(16px,env(safe-area-inset-bottom));left:12px;right:12px;height:56px!important;min-height:0!important;display:block!important;margin:0!important;padding:0!important;border:0!important;background:none!important;box-shadow:none!important;pointer-events:none}
+.clubhouse-ready .turn-side{position:static!important;display:flex!important;align-items:center;justify-content:space-between;gap:12px;padding:0!important;width:100%!important;background:none!important;border:0!important;box-shadow:none!important}
+.clubhouse-ready .turn-state{display:flex!important;max-width:47%;font:700 11px var(--sans);letter-spacing:0;color:#fff0ce;background:#203851e8;border:1px solid #d1b47b;border-radius:20px;min-height:40px;padding:7px 11px;box-shadow:0 3px #171727}
+.clubhouse-ready .turn-message,.clubhouse-ready .turn-help{display:none!important}
+.clubhouse-ready #playCard{pointer-events:auto;min-width:145px;min-height:48px;margin:0;padding:10px 17px;border:1px solid #ffe7a4;border-radius:24px;background:linear-gradient(#ffe290,#edab32);box-shadow:inset 0 2px #fff0bc,0 4px #8f561d,0 8px 15px #110d2580;color:#3e2714;font:800 16px var(--sans)}
+.clubhouse-ready #playCard:disabled{filter:saturate(.45);opacity:.8}.clubhouse-ready #playCard span{display:none}
+.clubhouse-ready .row-choice-bay,.clubhouse-ready .reveal-bay,.clubhouse-ready .result-screen{pointer-events:auto;z-index:8}
+.clubhouse-ready .row-choice-bay{top:20%;bottom:18%;inset-inline:12px;max-height:64svh;overflow:auto}
+.clubhouse-ready .stage-zone{pointer-events:none;z-index:5}.clubhouse-ready .topbar-right{pointer-events:auto}
+.clubhouse-score-strip{position:absolute;z-index:4;top:calc(62px + env(safe-area-inset-top));left:12px;right:12px;display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;max-height:36px;pointer-events:auto}.clubhouse-score-strip span{flex:0 0 auto;padding:6px 9px;background:#302b40d9;border:1px solid #bc965e80;border-radius:14px;color:#ffe5b5;font:600 10px var(--sans);white-space:nowrap}
