@@ -1,4 +1,5 @@
 import { clearNativeControls, mountNativeControls } from './rn-controls.js';
+import { syncClubhouse } from './clubhouse.js';
 import { isSoundEnabled, playSound, setAmbient, toggleSound, unlockAudio } from './audio.js';
 import { isNativeApp, publicGameUrl } from './native-app.js';
 import { games, featuredGame, GameLibrary, gameArtwork, gameStatusBadge } from './games.js';
@@ -41,6 +42,7 @@ function renderMarkup(container, markup, { nativeControls = true } = {}) {
   const animate = state.screenTransition && !matchMedia('(prefers-reduced-motion: reduce)').matches;
   clearNativeControls(container);
   container.innerHTML = markup;
+  requestAnimationFrame(syncClubhouse);
   if (nativeControls) {
     try { mountNativeControls(container); }
     catch (error) { console.error('Could not mount React Native Web controls.', error); }
