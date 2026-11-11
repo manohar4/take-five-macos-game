@@ -21,3 +21,4 @@
 .clubhouse-score-strip{position:absolute;z-index:4;top:calc(62px + env(safe-area-inset-top));left:12px;right:12px;display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;max-height:36px;pointer-events:auto}.clubhouse-score-strip span{flex:0 0 auto;padding:6px 9px;background:#302b40d9;border:1px solid #bc965e80;border-radius:14px;color:#ffe5b5;font:600 10px var(--sans);white-space:nowrap}
 /* The 3D cards reveal at their owners' seats; no detached reveal strip. */
 .clubhouse-ready .stage-zone,.clubhouse-ready .reveal-bay{display:none!important}
+.clubhouse-player-labels{position:absolute;inset:0;z-index:3;pointer-events:none}.clubhouse-player-label{position:absolute;transform:translate(-50%,-50%);max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:5px 10px;border:1px solid #e6c481;border-radius:13px;background:linear-gradient(#423345,#292437);box-shadow:0 3px 7px #190f2d66;color:#fff1ce;font:700 12px/1.2 var(--sans);text-align:center}
