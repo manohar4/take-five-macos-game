@@ -10,6 +10,13 @@ const rulesDialog = document.querySelector('#rulesDialog');
 const params = new URLSearchParams(location.search);
 const hostSaveKey = 'take5-host-save';
 const guestSessionKey = 'take5-guest-session';
+const roomTabId=readSession('take5-tab-id')||(crypto.randomUUID?.()||`${Date.now()}-${Math.random()}`);
+writeSession('take5-tab-id',roomTabId);
+function readSession(key){try{return JSON.parse(sessionStorage.getItem(key)||'null')}catch{return null}}
+function writeSession(key,value){try{sessionStorage.setItem(key,JSON.stringify(value))}catch{}}
+function storeGuestSession(value){writeSession(guestSessionKey,value);try{localStorage.setItem(guestSessionKey,JSON.stringify(value))}catch{}}
+function rememberRoomRole(role,roomId){writeSession('take5-room-role',{role,roomId});}
+
 const state = {
   screen: 'home', mode: 'online', tab: 'rooms', name: localStorage.getItem('take5-name') || '',
   peer: null, host: false, connection: null, connections: new Map(), clientId: null,
@@ -30,11 +37,14 @@ mountNativeControls(rulesDialog);
 bindPress('.dialog-close', () => rulesDialog.close());
 if (params.get('room')) { const invite=params.get('room'); state.tab = 'rooms'; state.roomPrefill = /^\d{4}$/.test(invite) ? invite : (invite.match(/^take5-(\d{4})$/)?.[1] || ''); }
 const savedHostRoom=readStored(hostSaveKey);
-const savedGuestRoom=readStored(guestSessionKey);
+const tabRole=readSession('take5-room-role');
+const savedGuestRoom=readSession(guestSessionKey)||(!tabRole?readStored(guestSessionKey):null);
+const hostLease=readStored('take5-host-lease');
+const otherHostActive=hostLease&&hostLease.tabId!==roomTabId&&Date.now()-hostLease.at<45000;
 const resumeCode=state.roomPrefill || savedGuestRoom?.roomId || '';
 const shouldResumeGuest=!!savedGuestRoom&&(!state.roomPrefill||savedGuestRoom.roomId===state.roomPrefill);
-if(savedHostRoom&&(state.roomPrefill===savedHostRoom.roomId||(!state.roomPrefill&&!shouldResumeGuest))){renderHome();resumeHostRoom(savedHostRoom);}
-else {renderHome();if(resumeCode&&savedGuestRoom?.roomId===resumeCode){state.resumeToken=savedGuestRoom.token;state.recoveringGuest=true;joinRoom(resumeCode);}}
+if(savedHostRoom&&!otherHostActive&&tabRole?.role!=='guest'&&((tabRole?.role==='host'&&(!state.roomPrefill||state.roomPrefill===savedHostRoom.roomId))||state.roomPrefill===savedHostRoom.roomId||(!state.roomPrefill&&!shouldResumeGuest))){renderHome();resumeHostRoom(savedHostRoom);}
+else {if(state.roomPrefill)renderTakeFiveHome();else renderHome();if(resumeCode&&savedGuestRoom?.roomId===resumeCode){state.resumeToken=savedGuestRoom.token;state.recoveringGuest=true;joinRoom(resumeCode);}}
 
 function readStored(key){try{return JSON.parse(localStorage.getItem(key)||'null')}catch{return null}}
 function escapeHtml(value) { return String(value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
@@ -254,13 +264,13 @@ function renderTakeFiveHome() {
         <section class="room-path join-path" aria-labelledby="joinRoomHeading">
           <div class="room-path-heading"><span class="room-path-step">01</span><div><h3 id="joinRoomHeading">Join a room</h3><p>Enter the four-digit code from your friend.</p></div></div>
           <label class="field-label" for="roomCode">Room code</label>
-          <div class="join-room-controls"><input class="text-field room-code-input" id="roomCode" type="text" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" placeholder="1234" aria-describedby="roomCodeHint" value="${escapeHtml(state.roomPrefill||'')}" autocomplete="one-time-code" /><button class="primary-button action-button join-room-button" id="joinRoom">Join room</button></div>
-          <span class="field-hint" id="roomCodeHint">Use the code shared by the host.</span>
+          <div class="join-room-controls"><input class="text-field room-code-input" id="roomCode" type="text" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" placeholder="1234" aria-describedby="roomCodeHint" value="${escapeHtml(state.roomPrefill||'')}" autocomplete="one-time-code" /><button class="primary-button action-button join-room-button" id="joinRoom" type="button" data-web-control>Join room</button></div>
+          <span class="field-hint" id="roomCodeHint" role="status" aria-live="polite">Use the code shared by the host.</span><button type="button" id="cancelRoomConnection" data-web-control hidden>Cancel connection</button>
         </section>
         <div class="room-divider"><span>OR CREATE YOUR OWN</span></div>
         <section class="room-path create-path" aria-labelledby="createRoomHeading">
           <div class="room-path-heading"><span class="room-path-step">02</span><div><h3 id="createRoomHeading">Create a room</h3><p>Open a table, then invite friends or add bots.</p></div></div>
-          <button class="primary-button action-button" id="hostRoom">Create room</button>
+          <button class="primary-button action-button" id="hostRoom" type="button" data-web-control>Create room</button>
         </section>
         <div class="inline-error" role="status" aria-live="polite"></div>
       </div>
@@ -277,12 +287,16 @@ function renderTakeFiveHome() {
   document.querySelector('#botCount')?.addEventListener('change',e=>state.botCount=+e.target.value);
   bindPress('#startBots',()=>{setNameFrom('#playerName');startLocal()});
   bindPress('#hostRoom',()=>{setNameFrom('#roomPlayerName');hostRoom()});
+  bindPress('#cancelRoomConnection',()=>{cleanupPeer();showError('Connection cancelled. Enter a code to try again.');});
   bindPress('#joinRoom',()=>{setNameFrom('#roomPlayerName');joinRoom(document.querySelector('#roomCode').value.trim())});
   document.querySelector('#roomCode')?.addEventListener('input',e=>{e.target.value=e.target.value.replace(/\D/g,'').slice(0,4)});
   document.querySelector('#roomCode')?.addEventListener('keydown',e=>{if(e.key==='Enter')document.querySelector('#joinRoom')?.dispatchEvent(new CustomEvent('rnpress',{bubbles:true}))});
 }
-function setNameFrom(sel) { state.name=document.querySelector(sel)?.value.trim()||'Player'; localStorage.setItem('take5-name',state.name); }
-function showError(message) { const el=document.querySelector(`[data-panel="${state.tab}"] .inline-error`); if(el)el.textContent=message; else say(message); const hint=document.querySelector('#roomCodeHint');if(hint)hint.textContent=message; }
+function setNameFrom(sel) { state.name=document.querySelector(sel)?.value.trim()||'Player'; try{localStorage.setItem('take5-name',state.name)}catch{} }
+function showError(message) { const el=document.querySelector(`[data-panel="${state.tab}"] .inline-error`); if(el)el.textContent=message; else say(message); const hint=document.querySelector('#roomCodeHint');if(hint)hint.textContent=message;
+  const button=document.querySelector('#joinRoom');if(button){button.textContent=state.busy?'Connecting…':'Join room';button.setAttribute('aria-busy',String(state.busy));}
+  const cancel=document.querySelector('#cancelRoomConnection');if(cancel)cancel.hidden=!state.busy;
+ }
 function say(message) { clearTimeout(state.toastTimer); document.querySelector('.toast')?.remove(); const el=document.createElement('div'); el.className='toast';el.textContent=message;document.body.append(el);state.toastTimer=setTimeout(()=>el.remove(),2600); }
 const roomReactions = ['😂','😮','😭','👏','❤️','🐂'];
 function showReaction(reaction) {
@@ -379,15 +393,18 @@ function resolveTurn(game, chosenRowIndex) {
 
 async function getPeerLib(){return import('https://esm.sh/peerjs@1.5.5?bundle');}
 function randomRoomCode(){const values=new Uint16Array(1);crypto.getRandomValues(values);return String(values[0]%10000).padStart(4,'0');}
-function roomResumeToken(roomId){let session=readStored(guestSessionKey);if(session?.roomId!==roomId||!session.token){session={roomId,token:crypto.randomUUID?.()||`${Date.now()}-${Math.random().toString(36).slice(2)}`};localStorage.setItem(guestSessionKey,JSON.stringify(session));}state.resumeToken=session.token;return session.token;}
-function saveHostRoom(){if(!state.host||!state.roomId)return;try{localStorage.setItem(hostSaveKey,JSON.stringify({roomId:state.roomId,name:state.name,screen:state.screen,players:state.players,game:state.game}));}catch{say('Could not save a recovery copy of this room on this device.');}}
+function roomResumeToken(roomId){let session=readSession(guestSessionKey);if(!session&&readSession('take5-room-role')?.role==='guest')session=readStored(guestSessionKey);if(session?.roomId!==roomId||!session.token){session={roomId,token:crypto.randomUUID?.()||`${Date.now()}-${Math.random().toString(36).slice(2)}`};storeGuestSession(session);}state.resumeToken=session.token;return session.token;}
+function saveHostRoom(){if(!state.host||!state.roomId)return;try{localStorage.setItem('take5-host-lease',JSON.stringify({tabId:roomTabId,at:Date.now()}));localStorage.setItem(hostSaveKey,JSON.stringify({roomId:state.roomId,name:state.name,screen:state.screen,players:state.players,game:state.game}));}catch{say('Could not save a recovery copy of this room on this device.');}}
 function watchHostConnection(peer,conn){if(state.peer!==peer)return;conn.on('open',()=>{});conn.roomLastSeen=Date.now();conn.on('error',()=>{try{conn.close()}catch{}});conn.on('data',data=>{conn.roomLastSeen=Date.now();hostMessage(conn,data);});conn.on('close',()=>{if(state.peer!==peer||state.connections.get(conn.peer)!==conn)return;const p=state.players.find(x=>x.id===conn.peer);if(p)p.online=false;state.connections.delete(conn.peer);saveHostRoom();if(state.game?.phase==='choosing'){completeTurnIfReady();broadcast();}else if(state.game?.phase==='row-choice'){if(state.game.pendingRowChoice?.playerId===p?.id)scheduleOfflineTurnFallback();broadcast();}else if(state.screen==='lobby')broadcastLobby();});}
 function watchPeerSignal(peer){peer.on('disconnected',()=>{if(state.peer===peer)watchPeerSignalRetry(peer,1200);});peer.on('open',()=>clearTimeout(state.peerReconnectTimer));}
 function watchPeerSignalRetry(peer,delay=3000){if(state.peer!==peer)return;clearTimeout(state.peerReconnectTimer);state.peerReconnectTimer=setTimeout(()=>{if(state.peer!==peer||!peer.disconnected)return;try{peer.reconnect()}catch{}if(state.peer===peer&&peer.disconnected)watchPeerSignalRetry(peer,4000);},delay);}
 async function hostRoom(){
-  if(state.busy)return;state.busy=true;showError('Opening your room…');
-  try{const {Peer}=await getPeerLib();let attempts=0;const openPeer=()=>{const code=randomRoomCode();const peer=new Peer(`take5-${code}`);state.peer=peer;state.host=true;watchPeerSignal(peer);
-    peer.on('open',id=>{if(state.peer!==peer)return;localStorage.removeItem(guestSessionKey);state.roomId=code;state.clientId=id;state.players=[{id,name:state.name,human:true,online:true,score:0,total:0,hand:[]}];state.screen='lobby';state.mode='online-host';state.busy=false;state.screenTransition=true;history.replaceState({},'',`?room=${encodeURIComponent(code)}`);renderLobby();saveHostRoom();});
+  if(state.busy){showError('Still connecting… Cancel below to try again.');return;}state.busy=true;showError('Opening your room…');
+  const request=Symbol();state.joinRequest=request;
+  const timer=setTimeout(()=>{if(state.joinRequest!==request||!state.busy)return;cleanupPeer();showError('Opening the room timed out. Please try again.');},30000);
+
+  try{const {Peer}=await getPeerLib();if(state.joinRequest!==request)return;let attempts=0;const openPeer=()=>{if(state.joinRequest!==request)return;const code=randomRoomCode();const peer=new Peer(`take5-${code}`);state.peer=peer;state.host=true;watchPeerSignal(peer);
+    peer.on('open',id=>{if(state.peer!==peer)return;clearTimeout(timer);state.joinRequest=null;try{localStorage.removeItem(guestSessionKey)}catch{}rememberRoomRole('host',code);state.roomId=code;state.clientId=id;state.players=[{id,name:state.name,human:true,online:true,score:0,total:0,hand:[]}];state.screen='lobby';state.mode='online-host';state.busy=false;state.screenTransition=true;history.replaceState({},'',`?room=${encodeURIComponent(code)}`);renderLobby();saveHostRoom();});
     peer.on('connection',conn=>watchHostConnection(peer,conn));
     peer.on('error',err=>{if(state.peer!==peer)return;if(err.type==='unavailable-id'&&attempts<8){attempts++;peer.destroy();state.peer=null;setTimeout(openPeer,120);return;}state.busy=false;if(['home','take5-home'].includes(state.screen))showError(err.type==='unavailable-id'?'Could not reserve a room code. Try again.':'Room connection failed. Check your internet and try again.');else say('Room connection hiccup.');});
   };openPeer();
@@ -395,9 +412,9 @@ async function hostRoom(){
 }
 async function resumeHostRoom(saved){
   if(!saved?.roomId||!/^\d{4}$/.test(saved.roomId))return renderHome();
-  state.busy=true;state.name=saved.name||state.name;showError('Restoring your room…');
-  try{const {Peer}=await getPeerLib();let attempts=0;const openPeer=()=>{const peer=new Peer(`take5-${saved.roomId}`);state.peer=peer;state.host=true;watchPeerSignal(peer);
-    peer.on('open',id=>{if(state.peer!==peer)return;setAmbient(false);state.roomId=saved.roomId;state.clientId=id;state.game=saved.game||null;state.players=state.game?.players||saved.players||[];if(state.game)state.players=state.game.players;state.players.forEach(p=>{if(p.human)p.online=p.id===id;});state.mode='online-host';state.screen=state.game?(state.game.phase==='finished'?'result':'game'):'lobby';state.busy=false;state.screenTransition=true;state.selected=null;state.submittedTurn=false;state.animating=false;state.replay=null;state.replayKey=null;state.revealOrigins={};history.replaceState({},'',`?room=${encodeURIComponent(saved.roomId)}`);if(state.screen==='lobby')renderLobby();else if(state.screen==='result')renderResult();else{renderGame();if(state.game.phase==='countdown')startCountdown(state.game,true);}saveHostRoom();});
+  state.busy=true;state.name=saved.name||state.name;showError('Restoring your room…');const request=Symbol();state.joinRequest=request;const timer=setTimeout(()=>{if(state.joinRequest!==request||!state.busy)return;cleanupPeer();showError('Could not restore this room. Create a room or enter a code to join.');},60000);
+  try{const {Peer}=await getPeerLib();if(state.joinRequest!==request)return;let attempts=0;const openPeer=()=>{if(state.joinRequest!==request)return;const peer=new Peer(`take5-${saved.roomId}`);state.peer=peer;state.host=true;watchPeerSignal(peer);
+    peer.on('open',id=>{if(state.peer!==peer)return;clearTimeout(timer);state.joinRequest=null;setAmbient(false);rememberRoomRole('host',saved.roomId);state.roomId=saved.roomId;state.clientId=id;state.game=saved.game||null;state.players=state.game?.players||saved.players||[];if(state.game)state.players=state.game.players;state.players.forEach(p=>{if(p.human)p.online=p.id===id;});state.mode='online-host';state.screen=state.game?(state.game.phase==='finished'?'result':'game'):'lobby';state.busy=false;state.screenTransition=true;state.selected=null;state.submittedTurn=false;state.animating=false;state.replay=null;state.replayKey=null;state.revealOrigins={};history.replaceState({},'',`?room=${encodeURIComponent(saved.roomId)}`);if(state.screen==='lobby')renderLobby();else if(state.screen==='result')renderResult();else{renderGame();if(state.game.phase==='countdown')startCountdown(state.game,true);}saveHostRoom();});
     peer.on('connection',conn=>watchHostConnection(peer,conn));
     peer.on('error',err=>{if(state.peer!==peer)return;if(err.type==='unavailable-id'&&attempts<25){attempts++;peer.destroy();state.peer=null;setTimeout(openPeer,Math.min(1800,180+attempts*120));return;}state.busy=false;if(attempts>=25){showError('This room is still active in another tab. Close that tab, then refresh to restore it.');}else{showError('Could not reconnect to your room. Refresh to try again.');}peer.destroy();state.peer=null;state.host=false;});
   };openPeer();}catch{state.busy=false;state.host=false;showError('Could not restore the room. Check your connection and refresh to try again.');}
@@ -468,7 +485,7 @@ function scheduleGuestReconnect(roomId,peer,attempt){
   clearTimeout(state.reconnectTimer);state.reconnectTimer=setTimeout(()=>{state.reconnectTimer=null;connectGuestToRoom(roomId,peer,attempt+1);},Math.min(8000,700*2**Math.min(attempt,3)));
 }
 function joinRoom(roomId){
-  if(state.busy)return;
+  if(state.busy){showError('Still connecting… Cancel below to try again.');return;}
   if(!/^\d{4}$/.test(roomId)){showError('Enter the 4-digit room code.');return;}
   const oldPeer=state.peer;state.peer=null;try{oldPeer?.destroy()}catch{}
   clearTimeout(state.reconnectTimer);state.connection=null;state.busy=true;state.roomId=roomId;roomResumeToken(roomId);showError('Finding your table…');
@@ -490,14 +507,14 @@ function joinRoom(roomId){
 setInterval(()=>{
   if(document.hidden||!state.peer||!state.roomId)return;
   if(state.peer.disconnected)watchPeerSignalRetry(state.peer,500);
-  if(state.host){state.connections.forEach(conn=>{try{if(conn.open){if(Date.now()-(conn.roomLastSeen||Date.now())>60000)conn.close();else conn.send({type:'ping'});}}catch{conn.close();}});return;}
+  if(state.host){try{localStorage.setItem('take5-host-lease',JSON.stringify({tabId:roomTabId,at:Date.now()}))}catch{}state.connections.forEach(conn=>{try{if(conn.open){if(Date.now()-(conn.roomLastSeen||Date.now())>60000)conn.close();else conn.send({type:'ping'});}}catch{conn.close();}});return;}
   const conn=state.connection;
   if(conn?.open){
     if(state.roomLastSeen&&Date.now()-state.roomLastSeen>45000){state.connection=null;try{conn.close()}catch{}state.recoveringGuest=true;connectGuestToRoom(state.roomId,state.peer);}
     else try{conn.send({type:'ping'});}catch{state.connection=null;state.recoveringGuest=true;connectGuestToRoom(state.roomId,state.peer);}
   }else if(!state.busy&&!state.reconnectTimer){state.recoveringGuest=true;connectGuestToRoom(state.roomId,state.peer);}
 },15000);
-function clientMessage(data){if(data?.type==='reaction'){showReaction(data);}else if(data?.type==='welcome'){state.clientId=data.id;state.roomId=data.roomId;state.busy=false;state.mode='online-guest';if(!state.game)state.screen='lobby';localStorage.setItem(guestSessionKey,JSON.stringify({roomId:data.roomId,token:state.resumeToken}));if(!state.game)renderLobby();}else if(data?.type==='lobby'){state.players=data.players;state.roomId=data.roomId;if(state.screen!=='game')state.screen='lobby';renderLobby();}else if(data?.type==='game'){const previous=state.game;const changedTurn=previous&&(previous.turn!==data.game.turn||previous.round!==data.game.round);state.game=data.game;state.players=data.game.players;state.clientId=data.viewer;state.mode='online-guest';state.screen=data.game.phase==='finished'?'result':'game';if(changedTurn){state.selected=null;state.submittedTurn=false;}state.submittedTurn=!!data.game.readyPlayers?.includes(data.viewer);state.recoveringGuest=false;renderGame();}else if(data?.type==='error'){state.busy=false;say(data.message);}}
+function clientMessage(data){if(data?.type==='reaction'){showReaction(data);}else if(data?.type==='welcome'){state.clientId=data.id;state.roomId=data.roomId;state.busy=false;state.mode='online-guest';if(!state.game)state.screen='lobby';storeGuestSession({roomId:data.roomId,token:state.resumeToken});rememberRoomRole('guest',data.roomId);if(!state.game)renderLobby();}else if(data?.type==='lobby'){state.players=data.players;state.roomId=data.roomId;if(state.screen!=='game')state.screen='lobby';renderLobby();}else if(data?.type==='game'){const previous=state.game;const changedTurn=previous&&(previous.turn!==data.game.turn||previous.round!==data.game.round);state.game=data.game;state.players=data.game.players;state.clientId=data.viewer;state.mode='online-guest';state.screen=data.game.phase==='finished'?'result':'game';if(changedTurn){state.selected=null;state.submittedTurn=false;}state.submittedTurn=!!data.game.readyPlayers?.includes(data.viewer);state.recoveringGuest=false;renderGame();}else if(data?.type==='error'){state.busy=false;say(data.message);}}
 function sendPick(card){if(state.animating||state.game?.phase!=='choosing')return;playSound('card');const origin=document.querySelector(`.hand-card[data-card="${card}"]`)?.getBoundingClientRect();if(origin)state.revealOrigins[state.clientId]={left:origin.left,top:origin.top,width:origin.width,height:origin.height};if(state.host){if(state.game.selections[state.clientId])return;state.game.selections[state.clientId]=card;completeTurnIfReady();broadcast();}else if(state.connection?.open){state.connection.send({type:'pick',card});state.selected=card;state.submittedTurn=true;renderGame();}}
 
 function resolveRowChoice(rowIndex){
@@ -563,5 +580,5 @@ function renderGame(){if(!state.game)return;const g=state.game;prepareRevealRepl
 }
 function renderLastReveal(reveal,myId){const mine=reveal.find(x=>x.playerId===myId);if(!mine)return reveal.map(x=>`${escapeHtml(x.name)} played ${x.card}${x.penalty?` and took ${x.penalty} bulls`:''}`).join(' · ');return `${mine.penalty?`You took ${mine.penalty} bullheads.`:`Your ${mine.card} landed in row ${mine.rowIndex+1}.`} ${reveal.length>1?reveal.filter(x=>x.playerId!==myId).map(x=>`${escapeHtml(x.name)} ${x.penalty?`took ${x.penalty} bulls`:`played ${x.card}`}`).join(' · '):''}`;}
 function renderResult(){document.body.classList.add('match-mode');state.screen='result';renderTopbar();const ordered=state.game.players.slice().sort((a,b)=>a.total-b.total);const winner=ordered[0];renderMarkup(app,`<section class="result-screen"><div class="result-mark">🏆</div><div class="eyebrow">THAT’S A WRAP</div><h1>${winner.id===state.clientId?'You kept your cool!':`${escapeHtml(winner.name)} takes it!`}</h1><p>Fewest bullheads at the table. A suspiciously good run.</p><div class="final-scores">${ordered.map((p,i)=>`<div class="final-score"><span>${i===0?'✳ ':''}${escapeHtml(p.name)}${p.id===state.clientId?' (you)':''}</span><b aria-label="${p.total} bullheads">${p.total}${bullIconMarkup()}</b></div>`).join('')}</div><button class="primary-button lobby-start" id="playAgain">Play again ↗</button><button class="pill-button" id="backHome">Back to table</button></section>`);bindPress('#playAgain',()=>{const online=state.mode.startsWith('online');if(online){if(state.host){state.players.forEach(p=>{p.score=0;p.total=0});startOnlineGame();}else say('Ask the host to start another game.');}else startLocal();});bindPress('#backHome',leaveToHome);}
-function cleanupPeer(){state.joinRequest=null;state.busy=false;state.roomLastSeen=0;if(state.peer){try{state.peer.destroy()}catch{}}clearTimeout(state.countdownTimer);clearInterval(state.countdownInterval);clearTimeout(state.reconnectTimer);clearTimeout(state.peerReconnectTimer);clearTimeout(state.disconnectAdvanceTimer);document.querySelectorAll('.flying-card,.flying-back').forEach(node=>node.remove());state.animating=false;state.replay=null;state.replayKey=null;state.revealOrigins={};state.stageSeen=new Set();state.stageTurnKey=null;state.reactionCooldowns.clear();state.recoveringGuest=false;state.resumeToken=null;state.peer=null;state.connection=null;state.connections.clear();state.host=false;state.clientId=null;state.roomId='';state.players=[];history.replaceState({},'',location.pathname);}
-function leaveToHome(){if(state.host)localStorage.removeItem(hostSaveKey);localStorage.removeItem(guestSessionKey);cleanupPeer();state.screen='home';state.game=null;state.selected=null;state.tab='rooms';state.screenTransition=true;renderHome();}
+function cleanupPeer(){if(state.host&&readStored('take5-host-lease')?.tabId===roomTabId){try{localStorage.removeItem('take5-host-lease')}catch{}}state.joinRequest=null;state.busy=false;state.roomLastSeen=0;if(state.peer){try{state.peer.destroy()}catch{}}clearTimeout(state.countdownTimer);clearInterval(state.countdownInterval);clearTimeout(state.reconnectTimer);clearTimeout(state.peerReconnectTimer);clearTimeout(state.disconnectAdvanceTimer);document.querySelectorAll('.flying-card,.flying-back').forEach(node=>node.remove());state.animating=false;state.replay=null;state.replayKey=null;state.revealOrigins={};state.stageSeen=new Set();state.stageTurnKey=null;state.reactionCooldowns.clear();state.recoveringGuest=false;state.resumeToken=null;state.peer=null;state.connection=null;state.connections.clear();state.host=false;state.clientId=null;state.roomId='';state.players=[];history.replaceState({},'',location.pathname);}
+function leaveToHome(){writeSession('take5-room-role',null);writeSession(guestSessionKey,null);if(state.host)localStorage.removeItem(hostSaveKey);localStorage.removeItem(guestSessionKey);cleanupPeer();state.screen='home';state.game=null;state.selected=null;state.tab='rooms';state.screenTransition=true;renderHome();}

@@ -106,5 +106,5 @@ export function clearNativeControls(container) {
 }
 
 export function mountNativeControls(container) {
-  container.querySelectorAll('button').forEach(toNativeButton);
+  container.querySelectorAll('button:not([data-web-control])').forEach(toNativeButton);
 }
