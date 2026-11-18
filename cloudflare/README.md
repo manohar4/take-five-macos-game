@@ -4,6 +4,7 @@ The existing web app can stay on Render. The Cloudflare Worker uses one SQLite-b
 
 - 2–6 human players; no account in the game.
 - New invite links use a four-digit numeric room code. Older 12-character links still work. A four-digit code can be guessed; an open seat can be claimed by anyone who knows the code.
+- The host can refresh an invite before anyone joins. Refreshing retires the old code; once a guest joins, the code stays fixed.
 - The browser stores a secret seat token locally. Closing the app preserves the seat; clearing site data, private browsing, or using a different device can lose access to that seat.
 - Unfinished or completed tables expire after seven days without a saved change. Reading a table does not extend its life.
 - Render and Worker origins must match the addresses configured in `APP_ORIGINS`. Add any custom site origin before publishing.

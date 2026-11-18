@@ -2,7 +2,7 @@ import { clearNativeControls, mountNativeControls } from './rn-controls.js';
 import { syncClubhouse, setClubhouseGame, playClubhouseReveal } from './clubhouse.js';
 import { isSoundEnabled, playSound, setAmbient, toggleSound, unlockAudio } from './audio.js';
 import { isNativeApp, publicGameUrl } from './native-app.js';
-import { games, featuredGame, GameLibrary, gameArtwork, gameStatusBadge } from './games.js';
+import { games, GameLibrary } from './games.js';
 let disposePhase10=null;
 
 const app = document.querySelector('#app');
@@ -170,18 +170,12 @@ function renderHome() {
   disposePhase10?.();disposePhase10=null;document.body.classList.remove('p10-mode');
   cleanupPeer(); document.body.classList.remove('match-mode','lobby-mode','take5-entry-mode','result-mode'); document.body.classList.add('home-mode','platform-home'); state.screen='home'; state.game=null; state.selected=null;setAmbient(true);
   try {
-    if (!featuredGame || typeof GameLibrary !== 'function') throw new Error('The game registry is unavailable.');
     renderTopbar();
-    renderMarkup(app, `<section class="platform-homepage">
-      <section class="platform-welcome" aria-labelledby="platformWelcomeTitle"><div><h1 id="platformWelcomeTitle">Ready to play?</h1><p>Pick your game. Bring your friends. Let the fun begin.</p></div><span class="platform-online"><i></i> Games ready</span></section>
-      <section class="platform-featured" data-game-tile="play" data-game-id="${featuredGame.id}" role="button" tabindex="0" aria-label="Play ${escapeHtml(featuredGame.name)}" aria-labelledby="featuredTitle"><div class="featured-art">${gameArtwork(featuredGame)}</div><div class="featured-copy"><div class="featured-meta"><span>Featured game</span>${gameStatusBadge(featuredGame)}</div><h2 id="featuredTitle">${escapeHtml(featuredGame.name)}</h2><p>${featuredGame.featuredDescription}</p><button class="platform-primary" data-game-action="play" data-game-id="${featuredGame.id}">Play now <span>→</span></button></div><div class="featured-detail"><span>2–10 players</span><span>10 cards each</span><span>15 min</span></div></section>
-      <section class="platform-library" id="games" aria-labelledby="gamesTitle"><div class="section-heading"><div><span>Game library</span><h2 id="gamesTitle">Your Game Collection</h2><p>Choose a game and start playing.</p></div></div><div class="game-library-grid">${GameLibrary()}</div></section>
-    </section>`, { nativeControls: false });
-    bindPress('[data-game-action]',(_,button)=>{if(button.dataset.gameAction==='play')launchGame(button.dataset.gameId);else say(`${button.dataset.gameId==='phase-10'?'Phase 10':'Splendor'} is coming soon.`);});
-    document.querySelectorAll('[data-game-tile="play"]').forEach(tile => {
-      tile.addEventListener('click', event => { if (!event.target.closest('[data-game-action]')) launchGame(tile.dataset.gameId || featuredGame.id); });
-      tile.addEventListener('keydown', event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); launchGame(tile.dataset.gameId || featuredGame.id); } });
-    });
+    renderMarkup(app,`<section class="platform-homepage arcade-home" aria-labelledby="gamesTitle">
+      <h1 id="gamesTitle">Pick a game</h1>
+      <div id="games" class="arcade-shelf">${GameLibrary()}</div>
+    </section>`,{nativeControls:false});
+    bindPress('[data-game-action="play"]',(_,button)=>launchGame(button.dataset.gameId));
   } catch (error) {
     console.error('Could not render the Card Games lobby.', error);
     renderMarkup(app, `<section class="platform-fallback" role="alert"><span>Card Games</span><h1>We couldn’t load the game lobby.</h1><p>${escapeHtml(error.message || 'Please try again.')}</p><button class="platform-primary" id="retryLobby">Try again <span>↻</span></button></section>`, { nativeControls: false });

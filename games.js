@@ -29,31 +29,17 @@ export const games = [
   }
 ];
 
-export const featuredGame = games.find(game => game.status === 'available');
+const tileArt={
+  'take-5':'<i class="arcade-card take-one">16</i><i class="arcade-card take-two">55</i><i class="arcade-card take-three">22</i>',
+  'phase-10':'<i class="arcade-card phase-one">7</i><i class="arcade-card phase-two">8</i><i class="arcade-card phase-three">9</i>',
+  splendor:'<span class="arcade-gem">◆</span>'
+};
 
-export function gameStatusBadge(game) {
-  return `<span class="game-status game-status--${game.status}">${game.status === 'available' ? 'Available now' : 'Coming soon'}</span>`;
-}
-
-export function gameArtwork(game) {
-  if (game.artwork === 'take5') return `<div class="game-art game-art--take5"><span class="game-art-card game-art-card--one" aria-hidden="true"></span><span class="game-art-card game-art-card--two" aria-hidden="true"></span><span class="game-art-card game-art-card--three" aria-hidden="true"></span><span class="game-art-bull">♞</span></div>`;
-  if (game.artwork === 'phase10') return `<div class="game-art game-art--phase10"><span class="phase-orb phase-orb--blue">7</span><span class="phase-orb phase-orb--red">10</span><span class="phase-orb phase-orb--gold">★</span><span class="phase-run">4 · 5 · 6 · 7</span></div>`;
-  return `<div class="game-art game-art--splendor"><span class="gem gem--emerald"></span><span class="gem gem--ruby"></span><span class="gem gem--sapphire"></span><span class="splendor-crown">♛</span></div>`;
-}
-
-export function GameCard(game) {
-  const available = game.status === 'available';
-  return `<article class="game-card game-card--${game.id}" data-game-id="${game.id}" ${available ? `data-game-tile="play" role="button" tabindex="0" aria-label="Play ${game.name}"` : ''}>
-    ${gameArtwork(game)}
-    <div class="game-card-copy">
-      <div class="game-card-meta"><span>${game.category}</span>${gameStatusBadge(game)}</div>
-      <h3>${game.name}</h3>
-      <p>${game.description}</p>
-      <button class="game-card-action" data-game-action="${available ? 'play' : 'soon'}" data-game-id="${game.id}" ${available ? '' : 'aria-disabled="true"'}>${available ? 'Play now' : 'Coming soon'} <span>→</span></button>
-    </div>
-  </article>`;
-}
-
-export function GameLibrary() {
-  return games.map(GameCard).join('');
+export function GameLibrary(){
+  const playable=games.filter(game=>game.status==='available');
+  const upcoming=games.filter(game=>game.status!=='available');
+  return playable.map(game=>`<button type="button" class="arcade-tile arcade-${game.id}" data-game-action="play" data-game-id="${game.id}" aria-label="Play ${game.name}">
+    <span class="arcade-art" aria-hidden="true">${tileArt[game.id]}</span>
+    <span class="arcade-title">${game.name}</span><span class="arcade-play" aria-hidden="true">Play</span>
+  </button>`).join('')+upcoming.map(game=>`<p class="arcade-soon"><span aria-hidden="true">${tileArt[game.id]}</span> ${game.name} <small>Coming soon</small></p>`).join('');
 }

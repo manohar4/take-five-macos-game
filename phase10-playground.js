@@ -1,3 +1,4 @@
+import {createCommentary} from './phase10-commentary.js';
 import {PHASES,goal,newGame,nextRound,canDraw,drawCard,findPhase,lay,hits,hit,skipTargets,discard,botTurn,passBlocked} from './phase10.js';
 import {onlineAPI,onlineRoom,normalizeCode,validCode,createToken,newCode,rememberSeat,savedSeat,recentRoom,inviteURL} from './phase10-online.js';
 import {playground} from './phase10-scene.js';
@@ -30,14 +31,16 @@ export function mountPhase10(root,{name,exit,invite}){
  <ol>${PHASES.map((_,i)=>`<li>${goal(i+1)}</li>`).join('')}</ol><a href="${rules}" target="_blank" rel="noopener">Mattel’s full instructions ↗</a><a href="https://www.mastgeneralstore.com/products/mattel-phase-10-card-game" target="_blank" rel="noopener">Classic deck photo ↗</a><details><summary>See the classic cards</summary><img class="p10-reference" src="${deckPhoto}" loading="lazy" width="480" height="480" alt="Classic numbered Phase 10 cards with colored bands alongside Wild and Skip cards."></details></dialog></section>`;
  const content=root.querySelector('.p10-content'),guide=root.querySelector('dialog');
  const scenery=playground(root.querySelector('canvas'));
+ const commentary=createCommentary();
  let g,selected=[],seat='player',count=3,timer,message='',picker='',disposed=false,shownCards=new Set(),shownRound=null,skipCardId=null;
- let remote=null,room=null,code='',connecting=false,sending=false,onlineMode=!!invite,entryName=name||'',entryCode=invite||'';
+ let remote=null,room=null,code='',connecting=false,sending=false,refreshing=false,onlineMode=!!invite,entryName=name||'',entryCode=invite||'';
  const notice=root.querySelector('.p10-network-status');
  const setStatus=text=>{notice.hidden=!text;notice.textContent=text||'';};
  const ready=()=>!sending&&g?.players[g.current]?.human&&g.step==='play';
  const me=()=>g?.players.find(p=>p.human);
  const persist=()=>{if(remote)return;try{sessionStorage.setItem('phase10-playground-v1',JSON.stringify(g));}catch{}};
  function setup(){
+  commentary.reset();
   content.classList.remove('p10-live');
   scenery.table(null);
   content.innerHTML=`<div class="p10-bar">${action('exit','← Games')}${action('guide','How to play')}</div><div class="p10-setup"><small>THE CLUBHOUSE</small><h1>Phase 10</h1><p>Ten challenges. One card at a time.</p>
@@ -56,7 +59,8 @@ export function mountPhase10(root,{name,exit,invite}){
   content.innerHTML=`<div class="p10-bar">${action('exit','← Games')}${action('guide','Guide')}</div>
    <div class="p10-setup p10-lobby"><small>PRIVATE TABLE</small><h1>Play with friends</h1><p>Share the invite. Anyone with the link can take an open seat.</p>
    <label>Invite code <output>${code}</output></label>
-   ${action('share-room','Share invite link')}
+   ${action('share-room','Share invite link',refreshing)}
+   ${room.host&&room.seats.length===1?action('refresh-invite','Refresh invite code',refreshing):''}
    <ul>${room.seats.map(p=>`<li>${avatar(p.avatar)}<b>${esc(p.name)}</b><small>${p.id===room.seat?'You':''}</small></li>`).join('')}</ul>
    ${room.host?action('start-room',room.seats.length<2?'Waiting for at least 2 players':'Deal the cards',room.seats.length<2||sending,'class="p10-gold"'):'<p>Waiting for the host to deal.</p>'}</div>`;
  }
@@ -78,7 +82,7 @@ export function mountPhase10(root,{name,exit,invite}){
    room=view;g=view.game;
    if(g)render();else lobby();
   },status(text,terminal){
-   if(disposed||remote!==connection)return;
+   if(disposed||remote!==connection||refreshing)return;
    if(terminal){backToSetup();setStatus(text);}else setStatus(text);
   }});
   remote=connection;
@@ -104,6 +108,34 @@ export function mountPhase10(root,{name,exit,invite}){
   catch(error){if(!disposed&&remote===connection)setStatus(error.message);}
   finally{if(!disposed&&remote===connection){sending=false;if(g)render();else if(room)lobby();}}
  }
+ async function refreshInvite(){
+  if(refreshing||sending||!remote||!room?.host||room.seats.length!==1||g)return;
+  const original=remote,host=room.seats[0];
+  let replacement,token,nextCode;
+  refreshing=true;lobby();setStatus('Refreshing invite…');
+  try{
+   for(let attempt=0;attempt<8;attempt++){
+    nextCode=newCode();token=createToken();
+    replacement=onlineRoom(nextCode,token,{update(){},status(){}});
+    try{await replacement.request('create',{name:host.name,avatar:host.avatar});break;}
+    catch(error){replacement.close();replacement=null;if(error.status!==409||attempt===7)throw error;}
+   }
+   if(disposed||remote!==original)return;
+   await original.move('retire-invite',{});
+   if(disposed||remote!==original)return;
+   replacement.close();replacement=null;
+   rememberSeat(nextCode,token);
+   backToSetup();
+   await openRoom('state',nextCode);
+   if(remote&&room)setStatus('Invite refreshed. Share the new code.');
+  }catch(error){
+   if(!disposed&&remote===original)setStatus(error.message);
+  }finally{
+   if(replacement){try{await replacement.move('retire-invite',{});}catch{}replacement.close();}
+   refreshing=false;
+   if(!disposed&&room&&!g)lobby();
+  }
+ }
  async function shareRoom(){
   const url=inviteURL(code);
   try{if(navigator.share)await navigator.share({title:'Join my Phase 10 table',url});
@@ -113,7 +145,7 @@ export function mountPhase10(root,{name,exit,invite}){
  function saved(){try{const match=JSON.parse(sessionStorage.getItem('phase10-playground-v1'));return match?.players?.length?match:null;}catch{return null;}}
  function render(){
   if(disposed||!g)return;
-  clearTimeout(timer);persist();
+  clearTimeout(timer);persist();commentary.observe(g);
   const player=me(),active=g.players[g.current],mine=active?.human,playing=ready(),canPick=mine&&g.step==='draw';
   const opponents=g.players.filter(p=>!p.human);
   if(g.step==='round'){
@@ -166,7 +198,7 @@ export function mountPhase10(root,{name,exit,invite}){
   ${inspected?`<div class="p10-scrim" data-p10="close"><section class="p10-sheet" role="dialog" aria-label="Completed phase"><div class="p10-guide-title"><h2>${inspected.human?'Your phase':esc(inspected.name)+'’s phase'}</h2>${action('close','Close')}</div>
    ${inspected.melds.map((m,i)=>meldGroup(inspected,m,i,destinations)).join('')}</section></div>`:''}
   ${picker==='menu'?`<div class="p10-scrim" data-p10="close"><section class="p10-sheet" role="dialog" aria-label="Game menu"><div class="p10-guide-title"><h2>Game menu</h2>${action('close','Close')}</div>
-   ${action('sound',isSoundEnabled()?'Mute sound':'Enable sound')}${action('guide','How to play')}${action('exit','Back to games')}</section></div>`:''}
+   ${action('sound',isSoundEnabled()?'Mute sound':'Enable sound')}${commentary.available?action('commentary',commentary.enabled()?'Commentary: on':'Commentary: off',false,`aria-pressed="${commentary.enabled()}"`):''}${action('guide','How to play')}${action('exit','Back to games')}</section></div>`:''}
   ${picker==='skip'?`<div class="p10-scrim" data-p10="close"><section class="p10-sheet" role="dialog" aria-label="Choose an opponent">
    <div class="p10-guide-title"><h2>Who skips a turn?</h2>${action('close','Close')}</div>
    ${skipTargets(g).map(p=>action('skip:'+p.id,esc(p.name))).join('')}
@@ -214,12 +246,14 @@ export function mountPhase10(root,{name,exit,invite}){
   if(key==='join-room'){openRoom('join',entryCode);return;}
   if(key==='resume-room'){const saved=recentRoom();if(saved&&savedSeat(saved))openRoom('state',saved);return;}
   if(key==='start-room'){sendMove('start',{},'deal');return;}
+  if(key==='refresh-invite'){refreshInvite();return;}
   if(key==='share-room'){shareRoom();return;}
   if(key==='leave-room'){backToSetup();return;}
   if(key==='melds'){picker='melds:'+id;render();return;}
   if(key==='menu'){picker='menu';render();return;}
   if(key==='guide'){if(picker==='menu'){picker='';render();}guide.showModal();return;}
   if(key==='close-guide'){guide.close();return;}
+  if(key==='commentary'){commentary.toggle(g);render();return;}
   if(key==='sound'){root.dispatchEvent(new CustomEvent('phase10-sound'));render();return;}
   if(key==='avatar'){seat=raw;setup();playSound('select');return;}
   if(key==='start'||key==='continue'){
@@ -323,5 +357,5 @@ export function mountPhase10(root,{name,exit,invite}){
  world.addEventListener('keydown',onKey);
  setup();
  if(invite&&onlineAPI&&savedSeat(normalizeCode(invite)))openRoom('state',invite);
- return ()=>{disposed=true;remote?.close();clearTimeout(timer);endDrag();world.remove();if(guide.open)guide.close();scenery.destroy();};
+ return ()=>{disposed=true;commentary.destroy();remote?.close();clearTimeout(timer);endDrag();world.remove();if(guide.open)guide.close();scenery.destroy();};
 }

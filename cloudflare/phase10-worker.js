@@ -75,6 +75,9 @@ export class PhaseRoom extends DurableObject{
     return fail('This table has expired.',410);
    }
    let seat=room?.seats.find(p=>p.secret===secret);
+   if(room?.retired&&!(op==='move'&&seat&&body.id===seat.lastMove)){
+    return op==='create'?fail('Room code unavailable.',409):fail('This invite was replaced. Ask the host for the new code.',410);
+   }
    if(op==='create'&&room&&!seat)return fail('Room code unavailable.',409);
    if(op==='create'||op==='join'){
     if(seat)return json(privateView(room,seat.id));
@@ -103,7 +106,9 @@ export class PhaseRoom extends DurableObject{
    if(body.revision!==room.rev)return fail('The table changed. Please try again.',409);
    const game=room.game,host=room.seats[0]===seat;
    let ok=false;
-   if(body.type==='start'&&host&&!game&&room.seats.length>=2){
+   if(body.type==='retire-invite'&&host&&!game&&room.seats.length===1){
+    room.retired=true;ok=true;
+   }else if(body.type==='start'&&host&&!game&&room.seats.length>=2){
     room.game=createMatch(room.seats.map(({id,name,avatar})=>({id,name,avatar,human:true})));ok=true;
    }else if(body.type==='next'&&game?.step==='round'&&!game.winner){
     nextRound(game);ok=true;
