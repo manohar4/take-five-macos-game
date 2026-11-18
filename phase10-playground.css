@@ -20,10 +20,7 @@
 .p10-seat-label>img,.p10-hand-head img{width:24px;height:24px;object-fit:contain;border-radius:50%;background:#f3d8a7}
 .p10-opponents b{font-size:11px;max-width:100%;overflow:hidden;text-overflow:ellipsis}.p10-opponents small{font-size:9px;color:#e8d6a8}
 .p10-table{display:flex;flex-direction:column;justify-content:center;flex:1 0 auto;gap:7px;padding:5px 3px 0}
-.p10-goal{align-items:center;display:flex;gap:8px;justify-content:space-between;border-radius:15px;background:#192a44ed;padding:7px 11px;box-shadow:inset 0 0 0 1px #ffd18055}
-.p10-goal small,.p10-setup>small,.p10-round>small{display:block;font:700 10px var(--mono,monospace);letter-spacing:.12em;color:#ffd78a}
-.p10-goal h1{font:21px/1.1 var(--display,sans-serif);margin:2px 0 0;white-space:nowrap}
-.p10-goal>strong{font-size:12px;color:#ffe5ad;text-align:right}
+.p10-setup>small,.p10-round>small{display:block;font:700 10px var(--mono,monospace);letter-spacing:.12em;color:#ffd78a}
 .p10-piles{display:flex;align-items:stretch;justify-content:center;gap:12px}
 .p10-piles button{width:min(39%,132px);padding:4px 3px 6px;display:flex;flex-direction:column;align-items:center;justify-content:space-between;gap:3px;background:#132b40d9}
 .p10-piles button:disabled{opacity:.79}
@@ -166,3 +163,88 @@
 .p10-world.has-world-table .p10-seat-melds .p10-table-group{background:#103e43a8}
 .p10-world.has-world-table .p10-piles button{background:#15374365}
 .p10-world.has-world-table [data-discard-pile].drop-hover{background:#296b63}
+
+/* Live play fits the visible viewport. Full melds can be opened on demand. */
+.p10-live{overflow:hidden;gap:4px}
+.p10-live .p10-match-bar{min-height:48px;padding-block:1px}
+.p10-live .p10-opponents{flex:none;overflow:visible;margin-top:clamp(0px,4.5dvh - 23px,32px);gap:3px;padding:0}
+.p10-live .p10-opponents>.p10-opponent{flex:1 1 0;min-width:0;padding:3px 2px}
+.p10-live .p10-seat-label>img{width:20px;height:20px}
+.p10-live .p10-seat-label small{font-size:9px;line-height:1.1}
+.p10-world .p10-seat-inspect{display:grid;justify-items:center;gap:3px;min-height:44px;padding:3px 1px;border:0;box-shadow:none;background:#185554a6;border-radius:6px}
+.p10-seat-preview{display:flex;justify-content:center;gap:1px;width:100%}
+.p10-seat-preview .p10-face{width:min(28%,19px);border-radius:2px}
+.p10-seat-preview .p10-face b{font-size:10px}
+.p10-seat-preview .p10-face i{display:none}
+.p10-live .p10-table{flex:1 1 auto;min-height:0;gap:4px;padding:2px 5px 4px;justify-content:center}
+.p10-live .p10-piles button{padding:3px 4px 5px;gap:2px}
+.p10-live .p10-piles :is(.p10-face,.p10-back,.p10-empty){width:clamp(36px,8dvh,62px)}
+.p10-live .p10-piles .p10-back{margin-bottom:3px}
+.p10-live .p10-phase-slots{padding:4px 5px}
+.p10-live .p10-phase-slots>header{margin-bottom:3px}
+.p10-live .p10-slot{padding:3px}
+.p10-live .p10-slot .p10-laid-cards{display:flex;justify-content:center;gap:2px}
+.p10-live .p10-slot .p10-laid-card{flex:1 1 0;min-width:0;max-width:24px}
+.p10-live .p10-slot .p10-face b{font-size:clamp(9px,2.6vw,13px)}
+.p10-live .p10-slot .p10-face i{display:none}
+.p10-live .p10-slot .p10-laid-card>small{font-size:7px;padding:0 1px}
+.p10-live .p10-slot-ghosts i{height:13px}
+.p10-live .p10-turn{min-height:29px;padding:3px 6px}
+.p10-live .p10-dock{padding:0 5px 2px}
+.p10-live .p10-held-hand.has-cards{padding-bottom:0}
+.p10-live .p10-hand{--card-width:clamp(42px, min(20%, 10.7dvh), 74px);height:calc(clamp(42px,10.7dvh,74px) / .69 + 28px)}
+.p10-world .p10-live .p10-hand button{top:15px}
+.p10-world .p10-live .p10-hand button[aria-pressed=true]{transform:translate(-50%,calc(var(--fan-drop) - 12px)) rotate(var(--fan-angle))}
+@media(max-height:650px){
+ .p10-live{gap:3px}
+ .p10-live .p10-opponents{margin-top:0}
+ .p10-live .p10-seat-label>img{width:15px;height:15px}
+ .p10-live .p10-hand{--card-width:clamp(38px,min(18%,8.7dvh),55px);height:calc(clamp(38px,8.7dvh,55px) / .69 + 26px)}
+ .p10-live .p10-hand .p10-face b{font-size:24px}
+ .p10-live .p10-turn small{display:none}
+}
+
+.p10-mode-choice{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.p10-mode-choice [aria-pressed=true]{border-color:#ffe399;background:#4c635c}
+.p10-setup input{min-width:0;width:min(52%,185px);min-height:44px;padding:8px;border:1px solid #a3aac2;border-radius:9px;color:#fff5d7;background:#14243f;font:16px var(--sans,system-ui)}
+.p10-lobby output{letter-spacing:.09em;font:700 14px var(--mono,monospace);color:#ffe58b}
+.p10-lobby ul{padding:0;margin:0;list-style:none;display:grid;gap:3px}
+.p10-lobby li{display:flex;align-items:center;gap:8px;padding:4px 8px;background:#354e6977;border-radius:8px;text-align:left}
+.p10-lobby img{width:30px;height:30px;object-fit:contain;border-radius:50%;background:#f3d8a7}
+.p10-lobby li small{margin-left:auto;color:#ffdf8d}
+.p10-network-status:not([hidden]){position:absolute;z-index:4;top:calc(env(safe-area-inset-top,0px) + 47px);left:50%;translate:-50% 0;width:max-content;max-width:calc(100% - 20px);padding:7px 10px;border:1px solid #deb977;border-radius:10px;color:#fff4d8;background:#273449;box-shadow:0 3px 12px #15203890;pointer-events:none;text-align:center;font-size:12px}
+
+/* Canopy seats: the portrait floats above an aqua glass phase card. */
+.p10-world{background:radial-gradient(ellipse at 55% 25%,#5baaa1,#224e65 57%,#182c46)}
+.p10-world.has-world-table::before{background:linear-gradient(#12465444,transparent 24%,transparent 74%,#1329407f)}
+.p10-live .p10-opponents{align-items:stretch;gap:6px}
+.p10-live .p10-opponents>.p10-opponent{display:flex;flex-direction:column;gap:2px;max-width:158px;padding:3px 4px 0;border-radius:12px;background:linear-gradient(#28678ab0,#185c77c7);box-shadow:inset 0 0 0 1px #a0dce466}
+.p10-live .p10-opponents>.p10-opponent.active{box-shadow:inset 0 0 0 1px #ffe9a9,0 0 10px #ffdc6a5e}
+.p10-seat-medallion{position:relative;width:clamp(25px,5.8dvh,45px);aspect-ratio:1}
+.p10-seat-medallion img{display:block;width:100%;height:100%;object-fit:contain;border:2px solid #fff9e7;border-radius:50%;background:radial-gradient(#80b9a3,#235b68);box-shadow:0 0 0 2px #418ed0,0 2px 4px #102844}
+.p10-seat-count{position:absolute;top:23%;left:-8px;min-width:16px;padding:2px;border:1px solid #ecf9ff;border-radius:3px;background:#165a98;box-shadow:0 2px #e1f6fd,0 4px #194d76;color:white;font:750 9px/1 var(--sans);text-align:center}
+.p10-seat-label b{white-space:nowrap;text-overflow:ellipsis}
+.p10-live .p10-seat-label .p10-seat-score{color:#ffe185;font-weight:800}
+.p10-seat-groups{display:flex;align-items:stretch;gap:3px;width:100%;margin:auto 0}
+.p10-seat-slot{display:flex;flex:1;min-width:0;flex-direction:column;justify-content:center;gap:2px;padding:2px;border:1px dashed #b8e7e687;border-radius:5px;color:#edfcf5;font:750 9px/1.12 var(--sans);min-height:34px}
+.p10-seat-slot.is-laid{background:#10485a77}
+.p10-seat-slot .p10-seat-preview .p10-face{width:min(28%,15px);flex-shrink:0}
+.p10-seat-slot .p10-seat-preview .p10-face b{font-size:9px}
+.p10-seat-slot .p10-seat-more{align-self:center;font-size:7px}
+.p10-world .p10-seat-inspect{width:100%;padding:0;background:none;display:flex;align-items:center;margin:auto 0;min-height:44px}
+.p10-world .p10-seat-inspect.can-hit .p10-seat-slot{border-color:#ffe392}
+.p10-seat-ribbon{margin:auto -4px 0;padding:2px 1px;border-radius:0 0 10px 10px;background:#175184b9;color:#e9f8ff;font:800 9px/1.2 var(--sans);letter-spacing:.04em}
+.p10-opponents.is-crowded{gap:3px}
+.p10-opponents.is-crowded .p10-seat-medallion{width:26px}
+.p10-opponents.is-crowded .p10-seat-slot{font-size:8px;padding:1px}
+.p10-opponents.is-crowded .p10-seat-count{left:-6px}
+.p10-opponents.is-crowded .p10-seat-preview .p10-face:nth-child(n+3){display:none}
+@media(max-height:650px){.p10-seat-medallion{width:26px}.p10-seat-slot{min-height:27px}.p10-live .p10-opponents{gap:3px}}
+
+.p10-turn-badge{display:inline-flex;flex:none;align-items:center;gap:5px;padding:4px 8px;border:1px solid #ffebac;border-radius:12px;background:#ffe089;color:#402b20;font:800 11px/1 var(--sans,system-ui);box-shadow:0 2px #634726}
+.p10-turn-badge::before,.p10-seat-playing::before{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;background:#7a591e;flex:none}
+.p10-hand-head.is-active img{box-shadow:0 0 0 2px #ffe089}
+.p10-opponent.active .p10-seat-medallion img{box-shadow:0 0 0 2px #ffe089,0 0 9px #ffe0899e}
+.p10-opponent.active .p10-seat-ribbon{background:#ffe089;color:#402b20}
+.p10-seat-playing{display:inline-flex;align-items:center;gap:4px;text-transform:uppercase}
+.p10-seat-playing::before{width:4px;height:4px}

@@ -3,15 +3,15 @@ import {RoundedBoxGeometry} from 'three/addons/geometries/RoundedBoxGeometry.js'
 
 export function playground(canvas){
  let r;
- try{r=new T.WebGLRenderer({canvas,antialias:true,alpha:true});}catch{return {seats(){},table(){},destroy(){}};}
+ try{r=new T.WebGLRenderer({canvas,antialias:true,alpha:true});}catch{return {table(){},destroy(){}};}
  r.setPixelRatio(Math.min(devicePixelRatio,1.7));r.toneMapping=T.ACESFilmicToneMapping;r.toneMappingExposure=1.55;
- const scene=new T.Scene();scene.background=new T.Color('#23243a');scene.fog=new T.Fog('#202b49',18,36);
+ const scene=new T.Scene();scene.background=new T.Color('#153a4a');scene.fog=new T.Fog('#236271',18,36);
  const camera=new T.PerspectiveCamera(36,1,.1,50);camera.position.set(0,8.6,12.3);camera.lookAt(0,1.2,0);
  scene.add(new T.HemisphereLight('#ffe5bd','#57403f',1.7));
  const key=new T.DirectionalLight('#ffdc9a',3.5);key.position.set(-4,8,3);scene.add(key);
  const fill=new T.DirectionalLight('#88b8ff',.92);fill.position.set(4,3,-6);scene.add(fill);
  const mat=color=>new T.MeshStandardMaterial({color,roughness:.58});
- const wood=mat('#8c4b34'),rim=mat('#f2ad61'),felt=mat('#116c70'),inner=mat('#21777a'),dark=mat('#162943'),white=mat('#fff0dc'),eye=mat('#261924');
+ const wood=mat('#8c4b34'),rim=mat('#f2ad61'),felt=mat('#116c70'),inner=mat('#21777a'),dark=mat('#162943');
  const box=(w,h,d,m,x,y,z,parent=scene)=>{
   const result=new T.Mesh(new RoundedBoxGeometry(w,h,d,3,Math.min(.18,w/2,h/2,d/2)),m);
   result.position.set(x,y,z);parent.add(result);return result;
@@ -25,55 +25,31 @@ export function playground(canvas){
  };
  box(40,.28,34,wood,0,-.83,0);
  for(let x=-7;x<=7;x+=.85)box(.04,.03,22,dark,x,-.67,0);
- box(28,10,.4,mat('#303452'),0,3,-7);
- for(let x=-7;x<=7;x+=1.3)box(.045,7,.08,wood,x,2,-6.76);
- box(5,2.2,.18,wood,0,3.4,-6.7);box(4.7,1.9,.18,mat('#29446a'),0,3.4,-6.54);
- for(const side of [-1,1]){
-  const lamp=mat('#ffc75c');lamp.emissive.set('#e99c40');lamp.emissiveIntensity=.7;ball(lamp,side*3.25,4.4,-4.8,.7,.3,.7);
-  const pool=new T.PointLight('#ffc17b',24,9);pool.position.set(side*3.25,4.04,-4.55);scene.add(pool);
-  box(.035,2,.035,rim,side*3.25,5.55,-4.8);
-  for(let i=0;i<4;i++)ball(mat(['#bedc70','#70c2b3'][i%2]),side*(3.7+i*.12),-.4+i*.26,-4,.35,.2,.3);
+ // A stylized canopy around the table: cool distant trunks and golden leaf tips.
+ box(30,11,.4,mat('#246574'),0,3,-8.4);
+ const trunks=['#2b6570','#2d7c76','#37857f','#427e64'].map(mat);
+ const leaves=['#508c58','#276e60','#419d75','#b3c46f'].map(mat);
+ for(let i=0;i<11;i++){
+  const x=(i-5)*1.24,base=-7.6+(i%3)*.36;
+  const trunk=box(.38+(i%3)*.10,10,.46,trunks[i%4],x,3.1,base);
+  trunk.rotation.z=Math.sin(i*2)*.25;
+ }
+ for(const sign of [-1,1]){
+  for(let i=0;i<8;i++){
+   const branch=ball(leaves[i%4],sign*(3.2+(i%3)*.48),3.6+(i%4)*.68,-4.8-(i%3)*.43,1.25,.16,.45);
+   branch.rotation.z=sign*(.25-(i%4)*.19);
+  }
+  for(let i=0;i<4;i++){
+   const leaf=ball(leaves[i],sign*(3.9+i*.18),.24+i*.19,-3.9,.49,.22,.31);
+   leaf.rotation.z=sign*(.3+i*.18);
+  }
  }
  oval(3.5,.48,wood,-.26);oval(3.47,.17,rim,.06);oval(3.23,.1,felt,.18);oval(3,.025,inner,.24);
- const figures=new T.Group();scene.add(figures);
- const palette={fox:'#ee8d34',bear:'#ae7244',frog:'#91bc47',player:'#b98563'};
- function mascot(avatar,x,scale,count){
-  const body=new T.Group();figures.add(body);body.position.set(x,.14,-3.55);body.scale.setScalar(scale);
-  const fur=mat(palette[avatar]||palette.player),shirt=mat(avatar==='frog'?'#d58b38':avatar==='fox'?'#166d5f':'#555b9b');
-  box(1.55,1.9,.48,mat('#a65058'),0,.65,-.48,body);
-  ball(shirt,0,.85,.03,.60,.70,.46,body);
-  ball(fur,0,1.79,.08,.69,.58,.52,body);
-  for(const s of [-1,1]){
-   if(avatar==='fox'){
-    const ear=new T.Mesh(new T.ConeGeometry(.24,.72,24),fur);ear.position.set(s*.48,2.3,0);ear.rotation.z=-s*.25;body.add(ear);
-   }else ball(fur,s*.48,2.24,.03,.24,.25,.21,body);
-   ball(white,s*.25,1.91,.51,.137,.16,.065,body);
-   ball(eye,s*.24,1.90,.57,.073,.091,.034,body);
-   ball(white,s*.22,1.94,.6,.024,.026,.014,body);
-   const arm=ball(shirt,s*.46,.87,.37,.22,.43,.23,body);
-   arm.rotation.z=s*.54;arm.rotation.x=-.35;
-  }
-  const visible=Math.min(count,7);
-  const back=visible?mat('#235a9c'):null,line=visible?mat('#eac56f'):null;
-  for(let i=0;i<visible;i++){
-   const spread=i-(visible-1)/2;
-   const card=new T.Group();body.add(card);card.position.set(spread*.105,1.04-Math.abs(spread)*.019,.81+i*.018);
-   card.rotation.z=-spread*.135;card.rotation.x=-.15;
-   box(.28,.40,.027,white,0,0,0,card);
-   box(.237,.354,.009,back,0,0,.017,card);
-   const mark=box(.078,.078,.008,line,0,0,.024,card);mark.rotation.z=Math.PI/4;
-  }
-  for(const s of [-1,1]){
-   ball(fur,s*(visible ? .32 : .48),visible ? .89 : .4,visible?1.01:.59,.18,.16,.16,body);
-   if(visible)ball(fur,s*.24,.97,1.1,.09,.12,.086,body);
-  }
-  ball(white,0,1.59,.50,.29,.17,.13,body);ball(eye,0,1.66,.62,.10,.06,.053,body);
- }
  function release(root){
   const materials=new Set(),geometry=new Set();
   root.traverse(o=>{if(o.geometry)geometry.add(o.geometry);if(o.material)materials.add(o.material);});
   geometry.forEach(g=>g.dispose());
-  materials.forEach(m=>{if(root===scene||m!==white&&m!==eye)m.dispose();});
+  materials.forEach(m=>m.dispose());
  }
  // Unproject the responsive play area onto a horizontal world plane. HTML
  // faces above it keep their original proportions and touch hit boxes.
@@ -111,14 +87,14 @@ export function playground(canvas){
   if(!showroom.visible){
    const origin=canvas.getBoundingClientRect(),rect=layout.getBoundingClientRect();
    const seats=layout.parentElement.querySelector('.p10-opponents');
-   const firstMeld=seats?.querySelector('.p10-seat-melds');
+   const firstMeld=seats?.querySelector('.p10-seat-inspect');
    const top=(firstMeld?.getBoundingClientRect().top??rect.top)-origin.top;
    if(top<h&&rect.bottom>origin.top){
     const footprint={left:3,right:w-3,top:Math.max(-20,top-8),bottom:Math.min(h+32,rect.bottom-origin.top+7)};
     deckSlab(footprint,.27,rail,0,22);
     deckSlab(footprint,.075,edge,2,20,.29);
     deckSlab(footprint,.035,felt,7,17,.31);
-    for(const element of layout.parentElement.querySelectorAll('.p10-piles .p10-back,.p10-piles .p10-face,[data-laid-card] .p10-face')){
+    for(const element of layout.parentElement.querySelectorAll('.p10-piles .p10-back,.p10-piles .p10-face,[data-laid-card] .p10-face,.p10-seat-preview .p10-face')){
      const c=element.getBoundingClientRect();
      const cx=(c.left+c.right)/2-origin.left,cy=(c.top+c.bottom)/2-origin.top;
      if(cx<12||cx>w-12||cy<footprint.top+7||cy>footprint.bottom-7)continue;
@@ -137,13 +113,7 @@ export function playground(canvas){
  const observer=new ResizeObserver(requestRender);observer.observe(canvas);
  const panel=canvas.parentElement.querySelector('.p10-content');
  panel?.addEventListener('scroll',requestRender,{capture:true,passive:true});
- let signature='';
- return {seats(players){
-  const sig=JSON.stringify(players.map(({avatar,count})=>[avatar,Math.min(count,7)]));if(sig===signature)return;signature=sig;
-  release(figures);figures.clear();
-  players.forEach(({avatar,count},i)=>mascot(avatar,(i-(players.length-1)/2)*Math.min(1.73,5/players.length),Math.min(1.08,3.7/players.length),count));
-  render();
- },table(element){
+ return {table(element){
   if(layout)observer.unobserve(layout);
   layout=element;
   if(layout)observer.observe(layout);

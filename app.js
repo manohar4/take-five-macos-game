@@ -43,7 +43,8 @@ const hostLease=readStored('take5-host-lease');
 const otherHostActive=hostLease&&hostLease.tabId!==roomTabId&&Date.now()-hostLease.at<45000;
 const resumeCode=state.roomPrefill || savedGuestRoom?.roomId || '';
 const shouldResumeGuest=!!savedGuestRoom&&(!state.roomPrefill||savedGuestRoom.roomId===state.roomPrefill);
-if(savedHostRoom&&!otherHostActive&&tabRole?.role!=='guest'&&((tabRole?.role==='host'&&(!state.roomPrefill||state.roomPrefill===savedHostRoom.roomId))||state.roomPrefill===savedHostRoom.roomId||(!state.roomPrefill&&!shouldResumeGuest))){renderHome();resumeHostRoom(savedHostRoom);}
+if(params.has('phase10room'))renderPhase10Setup(params.get('phase10room'));
+else if(savedHostRoom&&!otherHostActive&&tabRole?.role!=='guest'&&((tabRole?.role==='host'&&(!state.roomPrefill||state.roomPrefill===savedHostRoom.roomId))||state.roomPrefill===savedHostRoom.roomId||(!state.roomPrefill&&!shouldResumeGuest))){renderHome();resumeHostRoom(savedHostRoom);}
 else {if(state.roomPrefill)renderTakeFiveHome();else renderHome();if(resumeCode&&savedGuestRoom?.roomId===resumeCode){state.resumeToken=savedGuestRoom.token;state.recoveringGuest=true;joinRoom(resumeCode);}}
 
 function readStored(key){try{return JSON.parse(localStorage.getItem(key)||'null')}catch{return null}}
@@ -193,14 +194,16 @@ function launchGame(gameId) {
   if (game.route === 'phase-10') renderPhase10Setup();
   else renderTakeFiveHome();
 }
-async function renderPhase10Setup() {
-  cleanupPeer();state.screen='phase10';document.body.classList.remove('match-mode','lobby-mode','platform-home','take5-entry-mode','result-mode','home-mode','phase10-mode');
+async function renderPhase10Setup(invite) {
+  cleanupPeer();
+  if(invite){const url=new URL(location.href);url.searchParams.set('phase10room',invite);history.replaceState({},'',url.href);}
+  state.screen='phase10';document.body.classList.remove('match-mode','lobby-mode','platform-home','take5-entry-mode','result-mode','home-mode','phase10-mode');
   document.body.classList.add('p10-mode');setAmbient(false);renderTopbar();
   renderMarkup(app,'<p class="p10-loading" role="status">Opening the Phase 10 clubhouse…</p>',{nativeControls:false});
   try{
     const {mountPhase10}=await import('./phase10-playground.js');
     if(state.screen!=='phase10')return;
-    disposePhase10=mountPhase10(app,{name:state.name,exit:renderHome});
+    disposePhase10=mountPhase10(app,{name:state.name,exit:renderHome,invite});
   }catch(error){
     if(state.screen!=='phase10')return;
     console.error(error);renderMarkup(app,'<p class="p10-loading">The clubhouse couldn’t load. <button id="phaseReturn">Back to games</button></p>',{nativeControls:false});bindPress('#phaseReturn',renderHome);

@@ -9,7 +9,7 @@ export const points=c=>c.kind==='star'?25:c.kind==='skip'?15:c.value>=10?10:5;
 const numbered=c=>c.kind==='number';
 const take=(p,cards)=>{const ids=new Set(cards.map(c=>c.id));p.hand=p.hand.filter(c=>!ids.has(c.id));};
 function shuffle(cards){
- for(let i=cards.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[cards[i],cards[j]]=[cards[j],cards[i]];}
+ for(let i=cards.length-1;i>0;i--){const j=crypto.getRandomValues(new Uint32Array(1))[0]%(i+1);[cards[i],cards[j]]=[cards[j],cards[i]];}
  return cards;
 }
 export function deck(){
@@ -19,7 +19,11 @@ export function deck(){
 }
 export function newGame(name,avatar,opponents=3){
  const players=[{name,avatar,human:true},...['Milo','Nora','Pip','June','Otto'].slice(0,opponents).map((name,i)=>({name,avatar:['fox','bear','frog','fox','bear'][i]}))]
- .map((p,id)=>({...p,id,phase:1,score:0}));
+ .map((p,id)=>({...p,id}));
+ return createMatch(players);
+}
+export function createMatch(seats){
+ const players=seats.map(p=>({...p,phase:1,score:0}));
  const g={players,dealer:players.at(-1).id,round:0,winner:null,tiebreak:false};
  nextRound(g);return g;
 }
@@ -41,7 +45,7 @@ function advance(g,offset=1){
  }while(true);
  g.step='draw';
 }
-export const canDraw=(g,pile)=>g.step==='draw'&&(pile==='discard'?!!g.discard.length&&g.discard.at(-1).kind!=='skip':!!g.draw.length||g.discard.length>1);
+export const canDraw=(g,pile)=>g.step==='draw'&&(pile==='discard'?!!g.discard.length&&g.discard.at(-1).kind!=='skip':!!(g.drawCount??g.draw.length)||(g.discardCount??g.discard.length)>1);
 export function drawCard(g,pile){
  if(!canDraw(g,pile))return false;
  if(pile==='draw'&&!g.draw.length){const top=g.discard.pop();g.draw=shuffle(g.discard);g.discard=[top];}

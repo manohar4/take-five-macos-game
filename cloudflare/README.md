@@ -1,0 +1,22 @@
+# Phase 10 online play
+
+The existing web app can stay on Render. The Cloudflare Worker uses one SQLite-backed Durable Object per private code. The server runs the same Phase 10 engine as solo play, checks each move against the seat and table revision, and saves the match before notifying players. WebSockets signal updates; authenticated HTTP reads provide the private view. Polling and foreground resync work without a WebSocket. The game does not need the host device after the first deal.
+
+- 2–6 human players; no account in the game.
+- New invite links use a four-digit numeric room code. Older 12-character links still work. A four-digit code can be guessed; an open seat can be claimed by anyone who knows the code.
+- The browser stores a secret seat token locally. Closing the app preserves the seat; clearing site data, private browsing, or using a different device can lose access to that seat.
+- Unfinished or completed tables expire after seven days without a saved change. Reading a table does not extend its life.
+- Render and Worker origins must match the addresses configured in `APP_ORIGINS`. Add any custom site origin before publishing.
+
+## Local preview
+
+In one terminal run `npx wrangler@4 dev --port 8787`. In another run `npm run dev`. Use two browser profiles or devices with separate browser storage for different seats. Opening the same invite twice in one profile deliberately resumes the same seat.
+
+## Production
+
+1. Run `npx wrangler@4 login` in this directory and authorize the intended Cloudflare account.
+2. Run `npx wrangler@4 deploy`. Save the HTTPS Worker URL it prints.
+3. In the Render frontend service set `VITE_PHASE10_API` to that Worker URL (no path), then rebuild the frontend from this source. If building Capacitor, set the same variable at build time.
+4. Check two phones on separate networks: join by invite, draw and discard, lock one phone, then reconnect to the same seat. Close the host's browser after the first deal and confirm the match is still available.
+
+No Cloudflare credentials belong in this repository. See Cloudflare's [Durable Object WebSocket example](https://developers.cloudflare.com/durable-objects/examples/websocket-server/).
