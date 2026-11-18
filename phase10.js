@@ -77,7 +77,7 @@ function* assignments(kind,cards){
 export function findPhase(phase,hand){
  const requirements=PHASES[phase-1];
  if(!requirements)return null;
- const pool=hand.filter(c=>c.kind!=='skip').sort((a,b)=>Number(!numbered(a))-Number(!numbered(b)));
+ const pool=hand.filter(c=>c.kind!=='skip').sort((a,b)=>Number(!numbered(a))-Number(!numbered(b))||a.id-b.id);
  function search(i,cards,groups,natural){
   if(i===requirements.length)return natural?groups:null;
   const [kind,size]=requirements[i];
@@ -91,12 +91,27 @@ export function findPhase(phase,hand){
  }
  return search(0,pool,[],false);
 }
-export function lay(g,ids){
+export function runPlacements(meld){
+ return meld?.kind==='run'?[...assignments('run',meld.cards)]:[];
+}
+export function placeWildRuns(melds,starts={}){
+ if(!starts||typeof starts!=='object'||Array.isArray(starts))return null;
+ const adjusted=melds.slice();
+ for(const [index,low] of Object.entries(starts)){
+  if(!/^\d+$/.test(index)||!Number.isInteger(low))return null;
+  const chosen=runPlacements(melds[index]).find(m=>m.low===low);
+  if(!chosen)return null;
+  adjusted[index]=chosen;
+ }
+ return adjusted;
+}
+export function lay(g,ids,starts){
  const p=g.players[g.current];
  if(g.step!=='play'||p.melds.length)return false;
  const cards=ids?p.hand.filter(c=>ids.includes(c.id)):p.hand;
  if(ids&&cards.length!==PHASES[p.phase-1].reduce((n,[,size])=>n+size,0))return false;
- const melds=findPhase(p.phase,cards);if(!melds)return false;
+ const groups=findPhase(p.phase,cards);if(!groups)return false;
+ const melds=placeWildRuns(groups,starts);if(!melds)return false;
  p.melds=melds;p.laidThisTurn=true;take(p,melds.flatMap(m=>m.cards));
  if(!p.hand.length)endRound(g,p);
  return true;

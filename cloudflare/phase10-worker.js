@@ -18,9 +18,9 @@ export default {
     local&&/^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(origin));
   if(origin&&!allowed)return fail('This site is not allowed to connect.',403);
   if(request.method==='OPTIONS')return cors(new Response(null,{status:204}),origin);
-  const [,code,op]=url.pathname.match(/^\/v1\/rooms\/([0-9]{4}|[A-F0-9]{12})\/(create|join|state|move|events)$/)||[];
+  const [,code,op]=url.pathname.match(/^\/v1\/rooms\/([0-9]{4}|[A-F0-9]{12})\/(create|join|state|move|events|voice-ice)$/)||[];
   if(!codePattern.test(code??''))return cors(fail('Unknown room endpoint.',404),origin);
-  const expected=op==='state'||op==='events'?'GET':'POST';
+  const expected=['state','events','voice-ice'].includes(op)?'GET':'POST';
   if(request.method!==expected)return cors(fail('Method not allowed.',405),origin);
   try{
    const object=env.PHASE_ROOMS.get(env.PHASE_ROOMS.idFromName(code));
@@ -58,6 +58,18 @@ export class PhaseRoom extends DurableObject{
    request.headers.get('Authorization')?.match(/^Bearer ([a-f0-9]{64})$/)?.[1];
   if(!tokenPattern.test(token??''))return fail('A seat token is required.',401);
   const secret=await hash(token);
+  if(op==='voice-ice'){
+   const room=await this.ctx.storage.get('room');
+   if(!room||room.retired||room.expiresAt<=Date.now()||!room.seats.some(p=>p.secret===secret))return fail('Voice requires an active seat.',403);
+   const fallback={iceServers:[{urls:'stun:stun.cloudflare.com:3478'}]};
+   if(!this.env.TURN_KEY_ID||!this.env.TURN_API_TOKEN)return json(fallback);
+   try{
+    const response=await fetch('https://rtc.live.cloudflare.com/v1/turn/keys/'+encodeURIComponent(this.env.TURN_KEY_ID)+'/credentials/generate-ice-servers',{
+     method:'POST',headers:{Authorization:'Bearer '+this.env.TURN_API_TOKEN,'Content-Type':'application/json'},
+     body:JSON.stringify({ttl:43200}),signal:AbortSignal.timeout(3000)});
+    return json(response.ok?await response.json():fallback);
+   }catch{return json(fallback);}
+  }
   let body={};
   if(request.method==='POST'){
    if(Number(request.headers.get('Content-Length'))>4096)return fail('Request is too large.',413);
@@ -98,6 +110,7 @@ export class PhaseRoom extends DurableObject{
     if(request.headers.get('Upgrade')?.toLowerCase()!=='websocket'||!protocols.includes('phase10'))return fail('WebSocket required.',426);
     const [client,server]=Object.values(new WebSocketPair());
     this.ctx.acceptWebSocket(server,[String(seat.id)]);
+    server.serializeAttachment({seat:seat.id,voice:false});
     server.send(JSON.stringify({revision:room.rev}));
     return new Response(null,{status:101,webSocket:client,headers:{'Sec-WebSocket-Protocol':'phase10'}});
    }
@@ -115,7 +128,7 @@ export class PhaseRoom extends DurableObject{
    }else if(game&&game.step!=='round'&&game.players[game.current]?.id===seat.id){
     switch(body.type){
      case 'draw': if(['draw','discard'].includes(body.pile))ok=drawCard(game,body.pile);break;
-     case 'lay': if(Array.isArray(body.cards)&&body.cards.length<=11&&body.cards.every(Number.isInteger))ok=lay(game,body.cards);break;
+     case 'lay': if(Array.isArray(body.cards)&&body.cards.length<=11&&body.cards.every(Number.isInteger))ok=lay(game,body.cards,body.runStarts);break;
      case 'hit': if(Number.isInteger(body.card)&&body.target&&Number.isInteger(body.target.player)&&Number.isInteger(body.target.index))ok=hit(game,body.card,body.target);break;
      case 'discard': if(Number.isInteger(body.card))ok=discard(game,body.card,body.target);break;
      case 'pass':ok=passBlocked(game);break;
@@ -142,9 +155,37 @@ export class PhaseRoom extends DurableObject{
    for(const socket of this.ctx.getWebSockets())try{socket.close(4000,'Table expired');}catch{}
   });
  }
- webSocketMessage(socket,message){
-  if(message==='ping')socket.send('pong');
+ voiceRoster(){
+  const sockets=this.ctx.getWebSockets().filter(ws=>ws.readyState===1&&ws.deserializeAttachment()?.voice);
+  const packet=JSON.stringify({voice:'roster',seats:sockets.map(ws=>{const {seat,session}=ws.deserializeAttachment();return {seat,session};})});
+  for(const ws of sockets)try{ws.send(packet);}catch{}
  }
- webSocketClose(socket,code){try{socket.close(code===1006?1000:code);}catch{}}
- webSocketError(socket){try{socket.close(1011,'Reconnect');}catch{}}
+ webSocketMessage(socket,message){
+  if(message==='ping'){socket.send('pong');return;}
+  if(typeof message!=='string'||message.length>16000)return;
+  const user=socket.deserializeAttachment();
+  if(!user)return;
+  let data;try{data=JSON.parse(message);}catch{return;}
+  if(data?.voice==='join'){
+   for(const ws of this.ctx.getWebSockets(String(user.seat)))if(ws!==socket){
+    const old=ws.deserializeAttachment();
+    if(old?.voice){ws.serializeAttachment({...old,voice:false});try{ws.send(JSON.stringify({voice:'replaced'}));}catch{}}
+   }
+   socket.serializeAttachment({...user,voice:true,session:user.voice?user.session:crypto.randomUUID()});this.voiceRoster();return;
+  }
+  if(data?.voice==='leave'){socket.serializeAttachment({...user,voice:false});this.voiceRoster();return;}
+  if(!user.voice||data?.voice!=='signal'||!Number.isInteger(data.to)||data.to===user.seat)return;
+  const signal=data.signal;
+  if(!signal||!['offer','answer','ice','restart'].includes(signal.kind))return;
+  for(const ws of this.ctx.getWebSockets(String(data.to)))if(ws.deserializeAttachment()?.voice){
+   try{ws.send(JSON.stringify({voice:'signal',from:user.seat,signal}));}catch{}
+  }
+ }
+ webSocketClose(socket,code){
+  const user=socket.deserializeAttachment();
+  if(user?.voice){socket.serializeAttachment({...user,voice:false});this.voiceRoster();}
+  try{socket.close(code===1006?1000:code);}catch{}
+ }
+ webSocketError(socket){this.webSocketClose(socket,1011);}
+
 }

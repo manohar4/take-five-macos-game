@@ -23,16 +23,16 @@ export class OnlineError extends Error{
  constructor(message,status){super(message);this.status=status;}
 }
 export function onlineRoom(code,token,{update,status}){
- let socket,timer,poll,closed=false,requestInFlight=null,revision=-1,wanted=-1,retry=500,lastEvent=0;
+ let voiceListener=null,socket,timer,poll,closed=false,requestInFlight=null,revision=-1,wanted=-1,retry=500,lastEvent=0;
  const base=onlineAPI.replace(/\/$/,'')+'/v1/rooms/'+code+'/';
- async function request(op,payload){
+ async function request(op,payload,notify=true){
   let res;
   try{res=await fetch(base+op,{headers:{Authorization:'Bearer '+token,...(payload?{'Content-Type':'application/json'}:{})},
    method:payload?'POST':'GET',body:payload?JSON.stringify(payload):undefined,signal:AbortSignal.timeout(6500),cache:'no-store'});}
   catch{throw new OnlineError('Cannot reach the table. Reconnecting…',0);}
   const data=await res.json().catch(()=>({}));
   if(!res.ok)throw new OnlineError(data.error||'The table is unavailable.',res.status);
-  if(!closed){
+  if(notify&&!closed){
    if(data.revision>revision){revision=data.revision;update(data);}
    status('');
   }
@@ -54,13 +54,13 @@ export function onlineRoom(code,token,{update,status}){
   try{socket=new WebSocket(base.replace(/^http/,'ws')+'events',['phase10','seat.'+token]);}
   catch{schedule();return;}
   const ws=socket;
-  ws.onopen=()=>{retry=500;lastEvent=Date.now();sync();};
+  ws.onopen=()=>{retry=500;lastEvent=Date.now();voiceListener?.({voice:'connected'});sync();};
   ws.onmessage=e=>{
    lastEvent=Date.now();if(e.data==='pong')return;
-   try{const data=JSON.parse(e.data);if(Number.isSafeInteger(data.revision)&&data.revision>revision){wanted=Math.max(wanted,data.revision);sync();}}catch{}
+   try{const data=JSON.parse(e.data);if(data.voice){voiceListener?.(data);return;}if(Number.isSafeInteger(data.revision)&&data.revision>revision){wanted=Math.max(wanted,data.revision);sync();}}catch{}
   };
   ws.onerror=()=>ws.close();
-  ws.onclose=()=>{if(closed||socket!==ws)return;socket=null;sync();schedule();};
+  ws.onclose=()=>{if(closed||socket!==ws)return;socket=null;voiceListener?.({voice:'disconnected'});sync();schedule();};
  }
  function schedule(){
   clearTimeout(timer);if(closed)return;
@@ -68,19 +68,22 @@ export function onlineRoom(code,token,{update,status}){
  }
  function wake(){
   if(closed||document.hidden)return;
-  sync();if(socket?.readyState===1&&Date.now()-lastEvent>25000){socket.close();socket=null;}connect();
+  sync();if(socket?.readyState===1&&Date.now()-lastEvent>25000){socket.close();socket=null;voiceListener?.({voice:'disconnected'});}connect();
  }
  function close(){
   closed=true;clearTimeout(timer);clearInterval(poll);socket?.close();
   window.removeEventListener('online',wake);window.removeEventListener('pageshow',wake);
   document.removeEventListener('visibilitychange',wake);
  }
- return {request,close,start(){
+ return {request,close,voiceICE:()=>request('voice-ice',null,false),
+  listenVoice(listener){voiceListener=listener;if(socket?.readyState===1)listener?.({voice:'connected'});},
+  sendVoice(payload){if(socket?.readyState!==1)return false;try{socket.send(JSON.stringify(payload));return true;}catch{return false;}},
+  start(){
   window.addEventListener('online',wake);window.addEventListener('pageshow',wake);
   document.addEventListener('visibilitychange',wake);
   poll=setInterval(()=>{
    if(document.hidden||closed)return;
-   sync();if(socket?.readyState===1){if(Date.now()-lastEvent>25000){socket.close();socket=null;connect();}else socket.send('ping');}
+   sync();if(socket?.readyState===1){if(Date.now()-lastEvent>25000){socket.close();socket=null;voiceListener?.({voice:'disconnected'});connect();}else socket.send('ping');}
    else connect();
   },6000);connect();
  },async move(type,payload){

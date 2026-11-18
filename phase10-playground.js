@@ -1,5 +1,6 @@
+import {voiceChat} from './phase10-voice.js';
 import {createCommentary} from './phase10-commentary.js';
-import {PHASES,goal,newGame,nextRound,canDraw,drawCard,findPhase,lay,hits,hit,skipTargets,discard,botTurn,passBlocked} from './phase10.js';
+import {PHASES,goal,newGame,nextRound,canDraw,drawCard,findPhase,runPlacements,placeWildRuns,lay,hits,hit,skipTargets,discard,botTurn,passBlocked} from './phase10.js';
 import {onlineAPI,onlineRoom,normalizeCode,validCode,createToken,newCode,rememberSeat,savedSeat,recentRoom,inviteURL} from './phase10-online.js';
 import {playground} from './phase10-scene.js';
 import {playSound,isSoundEnabled} from './audio.js';
@@ -23,7 +24,7 @@ const action=(key,text,disabled=false,extra='')=>`<button type="button" data-p10
 
 export function mountPhase10(root,{name,exit,invite}){
  root.innerHTML=`<section class="p10-world"><canvas class="p10-scene" aria-hidden="true"></canvas>
- <div class="p10-content"></div><div class="p10-network-status" role="status" hidden></div><dialog class="p10-guide"><div class="p10-guide-title"><h2>Table guide</h2>${action('close-guide','Close')}</div>
+ <div class="p10-content"></div><div data-voice-output></div><dialog class="p10-voice-dialog" aria-label="Voice chat"></dialog><div class="p10-network-status" role="status" hidden></div><dialog class="p10-guide"><div class="p10-guide-title"><h2>Table guide</h2>${action('close-guide','Close')}</div>
  <p>Draw one card from either pile. Lay your whole phase when you can. Starting on your next turn after laying your phase, you can add matching cards to any phase on the table. Drop one card on the discard pile to end your turn. You can also select one card, then activate the pile.</p>
  <p><b>★ Star:</b> stands for a number or color. A phase needs at least one numbered card. A played Star stays where it was assigned.</p>
  <p><b>Skip:</b> discard it and choose an eligible opponent to miss their turn. You can’t draw a discarded Skip.</p>
@@ -32,8 +33,19 @@ export function mountPhase10(root,{name,exit,invite}){
  const content=root.querySelector('.p10-content'),guide=root.querySelector('dialog');
  const scenery=playground(root.querySelector('canvas'));
  const commentary=createCommentary();
- let g,selected=[],seat='player',count=3,timer,message='',picker='',disposed=false,shownCards=new Set(),shownRound=null,skipCardId=null;
+ let g,selected=[],runStarts={},seat='player',count=3,timer,message='',picker='',disposed=false,shownCards=new Set(),shownRound=null,skipCardId=null;
  let remote=null,room=null,code='',connecting=false,sending=false,refreshing=false,onlineMode=!!invite,entryName=name||'',entryCode=invite||'';
+ const voiceDialog=root.querySelector('.p10-voice-dialog'),voiceOutput=root.querySelector('[data-voice-output]');
+ let voice=null;
+ function voicePanel(state){
+  const focus=document.activeElement?.dataset.p10;
+  voiceDialog.innerHTML=`<div class="p10-guide-title"><h2>Voice chat</h2>${action('voice-close','Close')}</div>
+   <p role="status">${esc(state.text||'Talk to players who join voice at this table.')}</p>
+   <div class="p10-voice-actions">${state.joined&&!state.busy?
+    action('voice-mute',state.muted?'Unmute mic':'Mute mic')+action('voice-audio','Enable audio')+action('voice-leave','Leave voice'):
+    action('voice-join',state.busy?'Connecting…':'Join voice',state.busy||!state.available,'class="p10-gold"')+(state.busy?action('voice-leave','Cancel'):'')}</div>`;
+  if(focus)voiceDialog.querySelector(`[data-p10="${focus}"]:not(:disabled)`)?.focus({preventScroll:true});
+ }
  const notice=root.querySelector('.p10-network-status');
  const setStatus=text=>{notice.hidden=!text;notice.textContent=text||'';};
  const ready=()=>!sending&&g?.players[g.current]?.human&&g.step==='play';
@@ -60,11 +72,13 @@ export function mountPhase10(root,{name,exit,invite}){
    <div class="p10-setup p10-lobby"><small>PRIVATE TABLE</small><h1>Play with friends</h1><p>Share the invite. Anyone with the link can take an open seat.</p>
    <label>Invite code <output>${code}</output></label>
    ${action('share-room','Share invite link',refreshing)}
+   ${voice?.available?action('voice','Voice chat'):''}
    ${room.host&&room.seats.length===1?action('refresh-invite','Refresh invite code',refreshing):''}
    <ul>${room.seats.map(p=>`<li>${avatar(p.avatar)}<b>${esc(p.name)}</b><small>${p.id===room.seat?'You':''}</small></li>`).join('')}</ul>
    ${room.host?action('start-room',room.seats.length<2?'Waiting for at least 2 players':'Deal the cards',room.seats.length<2||sending,'class="p10-gold"'):'<p>Waiting for the host to deal.</p>'}</div>`;
  }
  function backToSetup(){
+  voice?.destroy();voice=null;if(voiceDialog.open)voiceDialog.close();
   remote?.close();remote=null;room=null;g=null;connecting=false;sending=false;picker='';setStatus('');
   const url=new URL(location.href);url.searchParams.delete('phase10room');history.replaceState({},'',url.href);
   setup();
@@ -78,8 +92,9 @@ export function mountPhase10(root,{name,exit,invite}){
   connecting=true;setup();setStatus(op==='create'?'Opening your table…':'Connecting to your table…');
   const connection=onlineRoom(code,token,{update(view){
    if(disposed||remote!==connection)return;
-   if(!room||view.revision!==room.revision){endDrag();selected=[];picker='';skipCardId=null;}
+   if(!room||view.revision!==room.revision){endDrag();selected=[];runStarts={};picker='';skipCardId=null;}
    room=view;g=view.game;
+   if(!voice)voice=voiceChat(connection,view.seat,voiceOutput,voicePanel);
    if(g)render();else lobby();
   },status(text,terminal){
    if(disposed||remote!==connection||refreshing)return;
@@ -164,7 +179,8 @@ export function mountPhase10(root,{name,exit,invite}){
   const destinations=one&&playing?hits(g,one.id):[];
   const top=g.discard.at(-1);
   const required=player&&!player.melds.length?PHASES[player.phase-1].reduce((n,[,size])=>n+size,0):0;
-  const preview=playing&&required>0&&selected.length===required?findPhase(player.phase,hand.filter(c=>selected.includes(c.id))):null;
+  const basePreview=playing&&required>0&&selected.length===required?findPhase(player.phase,hand.filter(c=>selected.includes(c.id))):null;
+  const preview=basePreview&&placeWildRuns(basePreview,runStarts);
   const focus=document.activeElement?.dataset.p10;
   content.classList.add('p10-live');
   const turnText=mine?(canPick?'Your turn · draw a card':player.laidThisTurn?'Phase laid · hitting unlocks next turn':player.melds.length?'Add to a phase or drop a card':'Build your phase or drop a card'):active?.name+' is playing…';
@@ -175,19 +191,20 @@ export function mountPhase10(root,{name,exit,invite}){
   <div class="p10-opponents ${opponents.length>3?'is-crowded':''}" aria-label="Opponents and completed phases">${opponents.map(p=>seatPanel(p,p===active,destinations)).join('')}</div>
   <div class="p10-table">
     <div class="p10-piles ${canPick?'is-drawing':''}">
-      ${action('draw',`<span class="p10-back" aria-hidden="true">PHASE <b>10</b></span><strong>Draw pile</strong><small>${(g.drawCount??g.draw.length)} cards</small>`,!canPick||!canDraw(g,'draw'))}
-      ${action('discard-draw',`${top?face(top):'<span class="p10-empty">Empty</span>'}<strong>Discard pile</strong><small>${top?esc(description(top)):'No card'}</small>`,!(canPick&&canDraw(g,'discard')||playing&&one),'data-discard-pile'+(playing&&one?` aria-label="Discard ${description(one)}" title="Discard selected card"`:''))}
+      ${action('draw','<span class="p10-back" aria-hidden="true">PHASE <b>10</b></span>',!canPick||!canDraw(g,'draw'),`aria-label="Draw pile, ${g.drawCount??g.draw.length} cards"`)}
+      ${action('discard-draw',top?face(top):'<span class="p10-empty" aria-hidden="true">—</span>',!(canPick&&canDraw(g,'discard')||playing&&one),`data-discard-pile aria-label="${playing&&one?'Discard '+description(one):'Discard pile, '+(top?description(top):'empty')}"`)}
     </div>
     ${player?`<section class="p10-phase-slots" aria-label="Your phase">
-     <header><b>Your phase · ${player.phase}</b><small>${player.melds.length?'Laid on the felt':'Build all groups'}</small>${preview?action('lay','Lay phase',false,'class="p10-gold"'):''}</header>
+     ${preview?`<div class="p10-lay-ready">${action('lay','Lay phase',false,'class="p10-gold"')}</div>`:''}
      <div class="p10-slot-grid">${PHASES[player.phase-1].map(([kind,size],i)=>`<div class="p10-slot ${player.melds[i]?'is-laid':preview?'is-preview':''}"><strong>${kind==='color'?size+' of one color':(kind==='set'?'Set':'Run')+' of '+size}</strong>
+      ${preview?runPicker(basePreview[i],i,preview[i].low):''}
       ${player.melds[i]?meldGroup(player,player.melds[i],i,destinations,false,true):preview?meldGroup(player,preview[i],i,[],true,true):`<div class="p10-slot-ghosts" aria-hidden="true">${Array.from({length:size},()=>'<i></i>').join('')}</div>`}</div>`).join('')}</div>
     </section>`:''}
     ${canPick&&!canDraw(g,'draw')&&!canDraw(g,'discard')?`<div class="p10-table-tools">${action('pass','Pass turn')}</div>`:''}
-    <div class="p10-turn" role="status"><strong>${esc(turnText)}</strong><small>${esc(prompt)}</small></div>
+    <div class="p10-sr-status" role="status">${esc(turnText)}. ${esc(prompt)}</div>
   </div>
   <div class="p10-dock">
-    <div class="p10-hand-head ${mine?'is-active':''}"><div>${player?avatar(player.avatar):''}<b>${player?'Your hand':'Spectating'}</b><small>${player?player.score+' pts':''}</small></div>${mine?'<span class="p10-turn-badge">Your turn</span>':''}</div>
+    <div class="p10-hand-head ${mine?'is-active':''}"><div>${player?avatar(player.avatar):''}<b>${player?'Your hand':'Spectating'}</b>${player?`<small class="p10-hand-phase" aria-label="Phase ${player.phase}">P-${player.phase}</small><small>${player.score} pts</small>`:''}</div>${mine?'<span class="p10-turn-badge">Your turn</span>':''}</div>
     <div class="p10-held-hand p10-grip-${player?.avatar??'player'} ${hand.length?'has-cards':''}"><div class="p10-hand" role="group" aria-label="Your cards" style="--intervals:${Math.max(1,hand.length-1)}">${hand.map((c,i)=>{
       const offset=i-(hand.length-1)/2,edge=offset/Math.max(1,(hand.length-1)/2),picked=selected.includes(c.id);
       const corner=c.kind==='star'?'★':'';
@@ -198,7 +215,7 @@ export function mountPhase10(root,{name,exit,invite}){
   ${inspected?`<div class="p10-scrim" data-p10="close"><section class="p10-sheet" role="dialog" aria-label="Completed phase"><div class="p10-guide-title"><h2>${inspected.human?'Your phase':esc(inspected.name)+'’s phase'}</h2>${action('close','Close')}</div>
    ${inspected.melds.map((m,i)=>meldGroup(inspected,m,i,destinations)).join('')}</section></div>`:''}
   ${picker==='menu'?`<div class="p10-scrim" data-p10="close"><section class="p10-sheet" role="dialog" aria-label="Game menu"><div class="p10-guide-title"><h2>Game menu</h2>${action('close','Close')}</div>
-   ${action('sound',isSoundEnabled()?'Mute sound':'Enable sound')}${commentary.available?action('commentary',commentary.enabled()?'Commentary: on':'Commentary: off',false,`aria-pressed="${commentary.enabled()}"`):''}${action('guide','How to play')}${action('exit','Back to games')}</section></div>`:''}
+   ${voice?.available?action('voice','Voice chat'):''}${action('sound',isSoundEnabled()?'Mute sound':'Enable sound')}${commentary.available?action('commentary',commentary.enabled()?'Commentary: on':'Commentary: off',false,`aria-pressed="${commentary.enabled()}"`):''}${action('guide','How to play')}${action('exit','Back to games')}</section></div>`:''}
   ${picker==='skip'?`<div class="p10-scrim" data-p10="close"><section class="p10-sheet" role="dialog" aria-label="Choose an opponent">
    <div class="p10-guide-title"><h2>Who skips a turn?</h2>${action('close','Close')}</div>
    ${skipTargets(g).map(p=>action('skip:'+p.id,esc(p.name))).join('')}
@@ -214,6 +231,14 @@ export function mountPhase10(root,{name,exit,invite}){
   return `<section class="p10-felt-melds" aria-label="Completed phases"><header>ON THE TABLE <span>${groups.length?groups.length+' completed':'No phases laid yet'}</span></header>
    ${groups.length?`<div class="p10-table-melds" tabindex="0" aria-label="Face-up cards">${groups.map(p=>`<div class="p10-table-player"><strong>${p.human?'You':esc(p.name)}</strong>
     ${p.melds.map((m,i)=>meldGroup(p,m,i,destinations)).join('')}</div>`).join('')}</div>`:'<div class="p10-table-melds" hidden></div>'}</section>`;
+ }
+ function runPicker(base,index,low){
+  const placements=runPlacements(base);
+  if(placements.length<2)return '';
+  return `<label class="p10-run-picker"><span>Place Wild</span><select data-run-slot="${index}" aria-label="Choose Wild placement for the run">${placements.map(m=>{
+   const wilds=m.cards.flatMap((c,i)=>c.kind==='star'?[m.low+i]:[]);
+   return `<option value="${m.low}" ${m.low===low?'selected':''}>${m.low}–${m.high} · Wild ${wilds.join(', ')}</option>`;
+  }).join('')}</select></label>`;
  }
  function meldGroup(p,m,index,destinations,preview=false,compact=false){
   const targets=destinations.filter(t=>t.player===p.id&&t.index===index);
@@ -234,7 +259,7 @@ export function mountPhase10(root,{name,exit,invite}){
   return `<div class="p10-opponent ${active?'active':''}">
    <div class="p10-seat-label"><div class="p10-seat-medallion">${avatar(p.avatar)}<span class="p10-seat-count" aria-label="${count} cards in hand">${count}</span></div><b>${esc(p.name)}</b><small class="p10-seat-score">${p.score} pts${p.skip?' · Skip':''}</small></div>
    ${p.melds.length?action('melds:'+p.id,slots,false,'class="p10-seat-inspect'+(canAdd?' can-hit':'')+'" aria-label="Inspect '+esc(p.name)+'’s phase'+(canAdd?' and add a card':'')+'"'):slots}
-   <span class="p10-seat-ribbon">${active?`<span class="p10-seat-playing" aria-label="${esc(p.name)}’s turn">Playing</span>`:canAdd?'CAN ADD':'PHASE '+p.phase}</span></div>`;
+   <span class="p10-seat-ribbon">${active?`<span class="p10-seat-playing" aria-label="${esc(p.name)}’s turn">Playing</span>`:'PHASE '+p.phase}</span></div>`;
  }
  function meldTitle(m){return m.kind==='set'?'Set of '+m.value:m.kind==='color'?m.color+' group':m.low+'–'+m.high+' run';}
  function onClick(e){
@@ -253,12 +278,18 @@ export function mountPhase10(root,{name,exit,invite}){
   if(key==='menu'){picker='menu';render();return;}
   if(key==='guide'){if(picker==='menu'){picker='';render();}guide.showModal();return;}
   if(key==='close-guide'){guide.close();return;}
+  if(key==='voice'){picker='';if(g)render();voiceDialog.showModal();return;}
+  if(key==='voice-close'){voiceDialog.close();return;}
+  if(key==='voice-join'){void voice?.join();return;}
+  if(key==='voice-mute'){voice?.mute();return;}
+  if(key==='voice-audio'){voice?.enableAudio();return;}
+  if(key==='voice-leave'){voice?.leave();return;}
   if(key==='commentary'){commentary.toggle(g);render();return;}
   if(key==='sound'){root.dispatchEvent(new CustomEvent('phase10-sound'));render();return;}
   if(key==='avatar'){seat=raw;setup();playSound('select');return;}
   if(key==='start'||key==='continue'){
    count=Number(content.querySelector('select').value);g=key==='continue'?saved():newGame(name||'You',seat,count);
-   if(!g)return;selected=[];message='';picker='';shownRound=null;shownCards.clear();playSound('deal');render();return;
+   if(!g)return;selected=[];runStarts={};message='';picker='';shownRound=null;shownCards.clear();playSound('deal');render();return;
   }
   if(key==='restart'){g=null;try{sessionStorage.removeItem('phase10-playground-v1');}catch{}setup();return;}
   if(!g)return;
@@ -270,23 +301,23 @@ export function mountPhase10(root,{name,exit,invite}){
    if(key==='discard-draw'&&ready()&&c){attemptDiscard(c.id);return;}
    if(key==='draw'||key==='discard-draw'){sendMove('draw',{pile:key==='draw'?'draw':'discard'});return;}
    if(key==='pass'){sendMove('pass');return;}
-   if(key==='lay'){sendMove('lay',{cards:selected},'finish');return;}
+   if(key==='lay'){sendMove('lay',{cards:selected,runStarts},'finish');return;}
    if(key==='hit'&&c){sendMove('hit',{card:c.id,target:{player:id,index:Number(index),side:side||undefined}},'land');return;}
    if(key==='skip'&&skipCardId!==null){sendMove('discard',{card:skipCardId,target:id});return;}
-   if(key==='card'&&ready()){selected=selected.includes(id)?selected.filter(n=>n!==id):[...selected,id];playSound('select');render();}
+   if(key==='card'&&ready()){runStarts={};selected=selected.includes(id)?selected.filter(n=>n!==id):[...selected,id];playSound('select');render();}
    return;
   }
   message='';let cue='tap';
-  if(key==='next'){nextRound(g);selected=[];picker='';cue='deal';}
+  if(key==='next'){nextRound(g);selected=[];runStarts={};picker='';cue='deal';}
   else if(key==='close'){picker='';skipCardId=null;}
   else if(g.players[g.current]?.human){
    if(key==='discard-draw'&&ready()&&c){attemptDiscard(c.id);return;}
-   if(key==='draw'||key==='discard-draw'){if(drawCard(g,key==='draw'?'draw':'discard')){selected=[];cue='card';}}
+   if(key==='draw'||key==='discard-draw'){if(drawCard(g,key==='draw'?'draw':'discard')){selected=[];runStarts={};cue='card';}}
    if(key==='pass')passBlocked(g);
-   if(key==='card'&&ready()){selected=selected.includes(id)?selected.filter(n=>n!==id):[...selected,id];cue='select';}
-   if(key==='lay'&&selected.length&&lay(g,selected)){selected=[];cue='finish';}
-   if(key==='hit'&&c&&hit(g,c.id,{player:id,index:Number(index),side:side||undefined})){selected=[];picker='';cue='land';}
-   if(key==='skip'&&picker==='skip'&&skipCardId!==null&&discard(g,skipCardId,id)){selected=[];picker='';skipCardId=null;cue='card';}
+   if(key==='card'&&ready()){runStarts={};selected=selected.includes(id)?selected.filter(n=>n!==id):[...selected,id];cue='select';}
+   if(key==='lay'&&selected.length&&lay(g,selected,runStarts)){selected=[];runStarts={};cue='finish';}
+   if(key==='hit'&&c&&hit(g,c.id,{player:id,index:Number(index),side:side||undefined})){selected=[];runStarts={};picker='';cue='land';}
+   if(key==='skip'&&picker==='skip'&&skipCardId!==null&&discard(g,skipCardId,id)){selected=[];runStarts={};picker='';skipCardId=null;cue='card';}
   }
   playSound(g.winner?(g.winner===player?.name?'win':'finish'):cue);render();
  }
@@ -294,9 +325,10 @@ export function mountPhase10(root,{name,exit,invite}){
   if(!ready()||picker)return;
   const card=me().hand.find(c=>c.id===id);if(!card)return;
   message='';
-  if(card.kind==='skip'&&skipTargets(g).length){skipCardId=id;picker='skip';}
-  else if(remote){sendMove('discard',{card:id});return;}
-  else if(discard(g,id)){selected=[];playSound(g.winner?'win':'card');}
+  const targets=card.kind==='skip'?skipTargets(g):[];
+  if(targets.length>1){skipCardId=id;picker='skip';}
+  else if(remote){sendMove('discard',{card:id,target:targets[0]?.id});return;}
+  else if(discard(g,id,targets[0]?.id)){selected=[];runStarts={};playSound(g.winner?'win':'card');}
   render();
  }
 
@@ -348,7 +380,8 @@ export function mountPhase10(root,{name,exit,invite}){
  }
  function onKey(e){if(e.key==='Escape'&&drag){e.preventDefault();endDrag();}}
  content.addEventListener('input',e=>{if(e.target.dataset.entry==='name')entryName=e.target.value;else if(e.target.dataset.entry==='code')entryCode=e.target.value;});
- content.addEventListener('change',e=>{if(e.target.matches('select'))count=Number(e.target.value);});
+ content.addEventListener('change',e=>{if(e.target.matches('[data-run-slot]')){const index=e.target.dataset.runSlot;runStarts[index]=Number(e.target.value);render();content.querySelector('[data-run-slot="'+index+'"]')?.focus({preventScroll:true});}
+  else if(e.target.matches('select'))count=Number(e.target.value);});
  world.addEventListener('click',guardDragClick,true);
  world.addEventListener('click',onClick);
  world.addEventListener('pointerdown',onPointerDown);
@@ -357,5 +390,5 @@ export function mountPhase10(root,{name,exit,invite}){
  world.addEventListener('keydown',onKey);
  setup();
  if(invite&&onlineAPI&&savedSeat(normalizeCode(invite)))openRoom('state',invite);
- return ()=>{disposed=true;commentary.destroy();remote?.close();clearTimeout(timer);endDrag();world.remove();if(guide.open)guide.close();scenery.destroy();};
+ return ()=>{disposed=true;voice?.destroy();if(voiceDialog.open)voiceDialog.close();commentary.destroy();remote?.close();clearTimeout(timer);endDrag();world.remove();if(guide.open)guide.close();scenery.destroy();};
 }

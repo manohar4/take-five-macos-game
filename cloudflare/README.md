@@ -21,3 +21,11 @@ In one terminal run `npx wrangler@4 dev --port 8787`. In another run `npm run de
 4. Check two phones on separate networks: join by invite, draw and discard, lock one phone, then reconnect to the same seat. Close the host's browser after the first deal and confirm the match is still available.
 
 No Cloudflare credentials belong in this repository. See Cloudflare's [Durable Object WebSocket example](https://developers.cloudflare.com/durable-objects/examples/websocket-server/).
+
+## Voice chat
+
+Online Phase 10 offers opt-in voice in the lobby and game menu. The microphone starts only after **Join voice**, and **Leave voice** or leaving the table stops it. Closing the voice controls keeps the call connected. Audio uses WebRTC; the Worker routes connection setup only and does not record audio.
+
+The default uses Cloudflare STUN. For networks that block direct WebRTC, create a key in Cloudflare Realtime TURN and set `TURN_KEY_ID` and `TURN_API_TOKEN` as Worker secrets using `wrangler secret put`. The authenticated Worker provides short-lived relay credentials to room seats; never put the long-lived key in Vite variables. TURN relay use can incur charges. See [Cloudflare TURN](https://developers.cloudflare.com/realtime/turn/).
+
+Voice requires the updated frontend and Worker. First check on two browsers with separate seats and HTTPS; confirm microphone permissions, mute, leave, and reconnect.
