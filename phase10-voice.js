@@ -3,8 +3,8 @@ const defaultICE=[{urls:'stun:stun.cloudflare.com:3478'}];
 export function voiceChat(room,seat,output,change){
  const available=!!(navigator.mediaDevices?.getUserMedia&&window.RTCPeerConnection);
  let stream,muted=false,busy=false,closed=false,version=0,iceServers=defaultICE;
- const peers=new Map();
- function status(text){change({available,joined:!!stream,muted,busy,text});}
+ const peers=new Map();let roster=[],meter,meterSource,meterTimer,speaking=false,silentSince=0,levelData;
+ function status(text){change({available,joined:!!stream,muted,busy,speaking,roster,text});}
  function remove(id){
   const peer=peers.get(id);if(!peer)return;
   peers.delete(id);peer.pc.close();peer.audio.remove();
@@ -47,12 +47,31 @@ export function voiceChat(room,seat,output,change){
   };
   return peer;
  }
+ function broadcast(){room.sendVoice({voice:'state',muted,speaking});}
+ function startMeter(){
+  try{
+   const C=window.AudioContext||window.webkitAudioContext;
+   meter=new C();void meter.resume().catch(()=>{});
+   meterSource=meter.createMediaStreamSource(stream);
+   const analyser=meter.createAnalyser();analyser.fftSize=512;meterSource.connect(analyser);
+   levelData=new Uint8Array(analyser.fftSize);
+   meterTimer=setInterval(()=>{
+    analyser.getByteTimeDomainData(levelData);
+    const rms=Math.sqrt(levelData.reduce((n,v)=>n+((v-128)/128)**2,0)/levelData.length);
+    if(!muted&&rms>.025)silentSince=Date.now();
+    const next=!muted&&Date.now()-silentSince<380;
+    if(next!==speaking){speaking=next;broadcast();status('');}
+   },180);
+  }catch{}
+ }
  function receive(data){
-  if(!stream||closed)return;
-  if(data.voice==='connected'){room.sendVoice({voice:'join'});return;}
-  if(data.voice==='disconnected'){for(const id of peers.keys())remove(id);status('Voice reconnecting…');return;}
+  if(closed)return;
+  if(data.voice==='connected'){if(stream)room.sendVoice({voice:'join',muted});return;}
+  if(data.voice==='disconnected'){roster=[];for(const id of peers.keys())remove(id);status('Voice reconnecting…');return;}
   if(data.voice==='replaced'){leave();status('Voice moved to another tab.');return;}
   if(data.voice==='roster'){
+   roster=data.seats;
+   if(!stream){status('');return;}
    const ids=new Map(data.seats.filter(p=>Number.isInteger(p.seat)&&p.seat!==seat).map(p=>[p.seat,p.session]));
    for(const [id,peer] of peers)if(ids.get(id)!==peer.session)remove(id);
    for(const [id,session] of ids)if(!peers.has(id)){
@@ -60,7 +79,7 @@ export function voiceChat(room,seat,output,change){
    }
    report();return;
   }
-  if(data.voice!=='signal'||!peers.has(data.from))return;
+  if(!stream||data.voice!=='signal'||!peers.has(data.from))return;
   const id=data.from,peer=peers.get(id),{pc}=peer,s=data.signal;
   peer.queue=peer.queue.then(async()=>{
    if(peers.get(id)!==peer)return;
@@ -83,12 +102,12 @@ export function voiceChat(room,seat,output,change){
  function leave(){
   version++;busy=false;
   if(stream)room.sendVoice({voice:'leave'});
-  room.listenVoice(null);
+  clearInterval(meterTimer);meterSource?.disconnect();if(meter)void meter.close().catch(()=>{});meter=null;speaking=false;
   stream?.getTracks().forEach(track=>track.stop());stream=null;muted=false;
   for(const id of peers.keys())remove(id);
   status('');
  }
- status('');
+ room.listenVoice(receive);status('');
  return {available,async join(){
   if(!available||busy||stream||closed)return;
   const attempt=++version;busy=true;status('Requesting microphone…');
@@ -98,11 +117,11 @@ export function voiceChat(room,seat,output,change){
    stream=captured;
    const config=await room.voiceICE().catch(()=>null);
    if(closed||attempt!==version)return;
-   iceServers=config?.iceServers??defaultICE;busy=false;status('Joining voice…');room.listenVoice(receive);
+   iceServers=config?.iceServers??defaultICE;busy=false;startMeter();status('Joining voice…');room.sendVoice({voice:'join',muted});
   }catch{if(!closed&&attempt===version){leave();status('Microphone unavailable. Check browser permissions.');}}
  },leave,mute(){
   if(!stream)return;
   muted=!muted;for(const track of stream.getAudioTracks())track.enabled=!muted;
-  status(muted?'Microphone muted':'Microphone on');
- },enableAudio(){for(const {audio} of peers.values())audio.play().catch(()=>{});report();},destroy(){closed=true;leave();}};
+  speaking=false;silentSince=0;broadcast();status(muted?'Microphone muted':'Microphone on');
+ },enableAudio(){for(const {audio} of peers.values())audio.play().catch(()=>{});report();},destroy(){closed=true;leave();room.listenVoice(null);}};
 }

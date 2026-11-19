@@ -111,7 +111,7 @@ export class PhaseRoom extends DurableObject{
     const [client,server]=Object.values(new WebSocketPair());
     this.ctx.acceptWebSocket(server,[String(seat.id)]);
     server.serializeAttachment({seat:seat.id,voice:false});
-    server.send(JSON.stringify({revision:room.rev}));
+    server.send(JSON.stringify({revision:room.rev}));this.voiceRoster();
     return new Response(null,{status:101,webSocket:client,headers:{'Sec-WebSocket-Protocol':'phase10'}});
    }
    if(!idPattern.test(body.id??'')||!Number.isSafeInteger(body.revision))return fail('Invalid move request.');
@@ -157,8 +157,8 @@ export class PhaseRoom extends DurableObject{
  }
  voiceRoster(){
   const sockets=this.ctx.getWebSockets().filter(ws=>ws.readyState===1&&ws.deserializeAttachment()?.voice);
-  const packet=JSON.stringify({voice:'roster',seats:sockets.map(ws=>{const {seat,session}=ws.deserializeAttachment();return {seat,session};})});
-  for(const ws of sockets)try{ws.send(packet);}catch{}
+  const packet=JSON.stringify({voice:'roster',seats:sockets.map(ws=>{const {seat,session,muted,speaking}=ws.deserializeAttachment();return {seat,session,muted:!!muted,speaking:!!speaking};})});
+  for(const ws of this.ctx.getWebSockets())try{ws.send(packet);}catch{}
  }
  webSocketMessage(socket,message){
   if(message==='ping'){socket.send('pong');return;}
@@ -171,7 +171,12 @@ export class PhaseRoom extends DurableObject{
     const old=ws.deserializeAttachment();
     if(old?.voice){ws.serializeAttachment({...old,voice:false});try{ws.send(JSON.stringify({voice:'replaced'}));}catch{}}
    }
-   socket.serializeAttachment({...user,voice:true,session:user.voice?user.session:crypto.randomUUID()});this.voiceRoster();return;
+   socket.serializeAttachment({...user,voice:true,muted:!!data.muted,speaking:false,session:user.voice?user.session:crypto.randomUUID()});this.voiceRoster();return;
+  }
+  if(data?.voice==='state'&&user.voice){
+   if(user.lastVoiceUpdate&&Date.now()-user.lastVoiceUpdate<120)return;
+   socket.serializeAttachment({...user,muted:!!data.muted,speaking:!data.muted&&!!data.speaking,lastVoiceUpdate:Date.now()});
+   this.voiceRoster();return;
   }
   if(data?.voice==='leave'){socket.serializeAttachment({...user,voice:false});this.voiceRoster();return;}
   if(!user.voice||data?.voice!=='signal'||!Number.isInteger(data.to)||data.to===user.seat)return;

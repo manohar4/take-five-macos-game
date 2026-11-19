@@ -251,3 +251,11 @@
 .p10-voice-dialog p{font-size:13px;line-height:1.4}
 .p10-voice-actions{display:flex;flex-wrap:wrap;gap:6px}
 [data-voice-output]{position:absolute;width:0;height:0;overflow:hidden}
+.p10-profile-voice{display:inline-flex;align-items:center;justify-content:center;gap:3px;font:650 9px/1.1 var(--sans);color:#cee4ec}
+.p10-profile-voice::before{content:"";width:4px;height:4px;background:#91a5af;border-radius:50%}
+.p10-profile-voice.is-talking{color:#dcff9f}
+.p10-profile-voice.is-talking::before{background:#b4ef71;box-shadow:0 0 5px #a6ef70}
+.p10-world .p10-direct-mic{min-height:44px;min-width:44px;padding:5px 8px;font-size:11px;flex:none;background:#20475a}
+.p10-direct-mic[aria-pressed=true]{border-color:#a3db81;color:#deffb9}
+.p10-hand-head{flex-wrap:wrap;justify-content:flex-start}
+.p10-hand-head>.p10-direct-mic{margin-left:auto}

@@ -24,7 +24,7 @@ const action=(key,text,disabled=false,extra='')=>`<button type="button" data-p10
 
 export function mountPhase10(root,{name,exit,invite}){
  root.innerHTML=`<section class="p10-world"><canvas class="p10-scene" aria-hidden="true"></canvas>
- <div class="p10-content"></div><div data-voice-output></div><dialog class="p10-voice-dialog" aria-label="Voice chat"></dialog><div class="p10-network-status" role="status" hidden></div><dialog class="p10-guide"><div class="p10-guide-title"><h2>Table guide</h2>${action('close-guide','Close')}</div>
+ <div class="p10-content"></div><div data-voice-output></div><div class="p10-network-status" role="status" hidden></div><dialog class="p10-guide"><div class="p10-guide-title"><h2>Table guide</h2>${action('close-guide','Close')}</div>
  <p>Draw one card from either pile. Lay your whole phase when you can. Starting on your next turn after laying your phase, you can add matching cards to any phase on the table. Drop one card on the discard pile to end your turn. You can also select one card, then activate the pile.</p>
  <p><b>★ Star:</b> stands for a number or color. A phase needs at least one numbered card. A played Star stays where it was assigned.</p>
  <p><b>Skip:</b> discard it and choose an eligible opponent to miss their turn. You can’t draw a discarded Skip.</p>
@@ -35,16 +35,31 @@ export function mountPhase10(root,{name,exit,invite}){
  const commentary=createCommentary();
  let g,selected=[],runStarts={},seat='player',count=3,timer,message='',picker='',disposed=false,shownCards=new Set(),shownRound=null,skipCardId=null;
  let remote=null,room=null,code='',connecting=false,sending=false,refreshing=false,onlineMode=!!invite,entryName=name||'',entryCode=invite||'';
- const voiceDialog=root.querySelector('.p10-voice-dialog'),voiceOutput=root.querySelector('[data-voice-output]');
- let voice=null;
+ const voiceOutput=root.querySelector('[data-voice-output]');
+ let voice=null,voiceState={available:false,joined:false,muted:false,busy:false,roster:[]};
+ function voiceStatus(id){
+  const state=id===room?.seat?(voiceState.joined?voiceState:null):voiceState.roster.find(p=>p.seat===id);
+  return !state?'Voice off':state.muted?'Muted':state.speaking?'Talking':'Mic on';
+ }
+ function micButton(){
+  if(!voiceState.available)return '';
+  const label=voiceState.busy?'Connecting…':!voiceState.joined?'Join voice':voiceState.muted?'Unmute':'Mute';
+  return action('voice-toggle',label,voiceState.busy,`class="p10-direct-mic" aria-label="${voiceState.joined?(voiceState.muted?'Unmute microphone':'Mute microphone'):'Join voice chat'}" aria-pressed="${voiceState.joined&&!voiceState.muted}"`);
+ }
+ function voiceBadge(id){
+  return `<span class="p10-profile-voice" data-voice-seat="${id}">${voiceStatus(id)}</span>`;
+ }
  function voicePanel(state){
-  const focus=document.activeElement?.dataset.p10;
-  voiceDialog.innerHTML=`<div class="p10-guide-title"><h2>Voice chat</h2>${action('voice-close','Close')}</div>
-   <p role="status">${esc(state.text||'Talk to players who join voice at this table.')}</p>
-   <div class="p10-voice-actions">${state.joined&&!state.busy?
-    action('voice-mute',state.muted?'Unmute mic':'Mute mic')+action('voice-audio','Enable audio')+action('voice-leave','Leave voice'):
-    action('voice-join',state.busy?'Connecting…':'Join voice',state.busy||!state.available,'class="p10-gold"')+(state.busy?action('voice-leave','Cancel'):'')}</div>`;
-  if(focus)voiceDialog.querySelector(`[data-p10="${focus}"]:not(:disabled)`)?.focus({preventScroll:true});
+  voiceState=state;
+  for(const el of content.querySelectorAll('[data-voice-seat]')){
+   el.textContent=voiceStatus(Number(el.dataset.voiceSeat));el.classList.toggle('is-talking',el.textContent==='Talking');
+  }
+  for(const el of content.querySelectorAll('[data-p10="voice-toggle"]')){
+   el.disabled=state.busy;
+   el.textContent=state.busy?'Connecting…':!state.joined?'Join voice':state.muted?'Unmute':'Mute';
+   el.setAttribute('aria-pressed',String(state.joined&&!state.muted));
+  }
+  if(state.text&&/unavailable|could not|failed|Enable audio/.test(state.text))setStatus(state.text);
  }
  const notice=root.querySelector('.p10-network-status');
  const setStatus=text=>{notice.hidden=!text;notice.textContent=text||'';};
@@ -72,13 +87,13 @@ export function mountPhase10(root,{name,exit,invite}){
    <div class="p10-setup p10-lobby"><small>PRIVATE TABLE</small><h1>Play with friends</h1><p>Share the invite. Anyone with the link can take an open seat.</p>
    <label>Invite code <output>${code}</output></label>
    ${action('share-room','Share invite link',refreshing)}
-   ${voice?.available?action('voice','Voice chat'):''}
+   ${micButton()}
    ${room.host&&room.seats.length===1?action('refresh-invite','Refresh invite code',refreshing):''}
-   <ul>${room.seats.map(p=>`<li>${avatar(p.avatar)}<b>${esc(p.name)}</b><small>${p.id===room.seat?'You':''}</small></li>`).join('')}</ul>
+   <ul>${room.seats.map(p=>`<li>${avatar(p.avatar)}<b>${esc(p.name)}</b><small>${p.id===room.seat?'You':''}</small>${voiceBadge(p.id)}</li>`).join('')}</ul>
    ${room.host?action('start-room',room.seats.length<2?'Waiting for at least 2 players':'Deal the cards',room.seats.length<2||sending,'class="p10-gold"'):'<p>Waiting for the host to deal.</p>'}</div>`;
  }
  function backToSetup(){
-  voice?.destroy();voice=null;if(voiceDialog.open)voiceDialog.close();
+  voice?.destroy();voice=null;voiceState={available:false,joined:false,muted:false,busy:false,roster:[]};
   remote?.close();remote=null;room=null;g=null;connecting=false;sending=false;picker='';setStatus('');
   const url=new URL(location.href);url.searchParams.delete('phase10room');history.replaceState({},'',url.href);
   setup();
@@ -204,7 +219,8 @@ export function mountPhase10(root,{name,exit,invite}){
     <div class="p10-sr-status" role="status">${esc(turnText)}. ${esc(prompt)}</div>
   </div>
   <div class="p10-dock">
-    <div class="p10-hand-head ${mine?'is-active':''}"><div>${player?avatar(player.avatar):''}<b>${player?'Your hand':'Spectating'}</b>${player?`<small class="p10-hand-phase" aria-label="Phase ${player.phase}">P-${player.phase}</small><small>${player.score} pts</small>`:''}</div>${mine?'<span class="p10-turn-badge">Your turn</span>':''}</div>
+    <div class="p10-hand-head ${mine?'is-active':''}"><div>${player?avatar(player.avatar):''}<b>${player?'Your hand':'Spectating'}</b>${player?`<small class="p10-hand-phase" aria-label="Phase ${player.phase}">P-${player.phase}</small><small>${player.score} pts</small>`:''}</div>${remote?micButton():''}${mine?'<span class="p10-turn-badge">Your turn</span>':''}</div>
+    ${remote?voiceBadge(room.seat):''}
     <div class="p10-held-hand p10-grip-${player?.avatar??'player'} ${hand.length?'has-cards':''}"><div class="p10-hand" role="group" aria-label="Your cards" style="--intervals:${Math.max(1,hand.length-1)}">${hand.map((c,i)=>{
       const offset=i-(hand.length-1)/2,edge=offset/Math.max(1,(hand.length-1)/2),picked=selected.includes(c.id);
       const corner=c.kind==='star'?'★':'';
@@ -215,7 +231,7 @@ export function mountPhase10(root,{name,exit,invite}){
   ${inspected?`<div class="p10-scrim" data-p10="close"><section class="p10-sheet" role="dialog" aria-label="Completed phase"><div class="p10-guide-title"><h2>${inspected.human?'Your phase':esc(inspected.name)+'’s phase'}</h2>${action('close','Close')}</div>
    ${inspected.melds.map((m,i)=>meldGroup(inspected,m,i,destinations)).join('')}</section></div>`:''}
   ${picker==='menu'?`<div class="p10-scrim" data-p10="close"><section class="p10-sheet" role="dialog" aria-label="Game menu"><div class="p10-guide-title"><h2>Game menu</h2>${action('close','Close')}</div>
-   ${voice?.available?action('voice','Voice chat'):''}${action('sound',isSoundEnabled()?'Mute sound':'Enable sound')}${commentary.available?action('commentary',commentary.enabled()?'Commentary: on':'Commentary: off',false,`aria-pressed="${commentary.enabled()}"`):''}${action('guide','How to play')}${action('exit','Back to games')}</section></div>`:''}
+   ${voiceState.joined?action('voice-leave','Leave voice'):''}${voiceState.joined?action('voice-audio','Enable voice audio'):''}${action('sound',isSoundEnabled()?'Mute sound':'Enable sound')}${commentary.available?action('commentary',commentary.enabled()?'Commentary: on':'Commentary: off',false,`aria-pressed="${commentary.enabled()}"`):''}${action('guide','How to play')}${action('exit','Back to games')}</section></div>`:''}
   ${picker==='skip'?`<div class="p10-scrim" data-p10="close"><section class="p10-sheet" role="dialog" aria-label="Choose an opponent">
    <div class="p10-guide-title"><h2>Who skips a turn?</h2>${action('close','Close')}</div>
    ${skipTargets(g).map(p=>action('skip:'+p.id,esc(p.name))).join('')}
@@ -257,7 +273,7 @@ export function mountPhase10(root,{name,exit,invite}){
    return `<span class="p10-seat-slot ${meld?'is-laid':''}"><span>${label}</span>${meld?`<span class="p10-seat-preview">${meld.cards.slice(0,3).map(face).join('')}${meld.cards.length>3?`<small class="p10-seat-more">+${meld.cards.length-3}</small>`:''}</span>`:''}</span>`;
   }).join('')}</span>`;
   return `<div class="p10-opponent ${active?'active':''}">
-   <div class="p10-seat-label"><div class="p10-seat-medallion">${avatar(p.avatar)}<span class="p10-seat-count" aria-label="${count} cards in hand">${count}</span></div><b>${esc(p.name)}</b><small class="p10-seat-score">${p.score} pts${p.skip?' · Skip':''}</small></div>
+   <div class="p10-seat-label"><div class="p10-seat-medallion">${avatar(p.avatar)}<span class="p10-seat-count" aria-label="${count} cards in hand">${count}</span></div><b>${esc(p.name)}</b><small class="p10-seat-score">${p.score} pts${p.skip?' · Skip':''}</small>${remote?voiceBadge(p.id):''}</div>
    ${p.melds.length?action('melds:'+p.id,slots,false,'class="p10-seat-inspect'+(canAdd?' can-hit':'')+'" aria-label="Inspect '+esc(p.name)+'’s phase'+(canAdd?' and add a card':'')+'"'):slots}
    <span class="p10-seat-ribbon">${active?`<span class="p10-seat-playing" aria-label="${esc(p.name)}’s turn">Playing</span>`:'PHASE '+p.phase}</span></div>`;
  }
@@ -278,10 +294,7 @@ export function mountPhase10(root,{name,exit,invite}){
   if(key==='menu'){picker='menu';render();return;}
   if(key==='guide'){if(picker==='menu'){picker='';render();}guide.showModal();return;}
   if(key==='close-guide'){guide.close();return;}
-  if(key==='voice'){picker='';if(g)render();voiceDialog.showModal();return;}
-  if(key==='voice-close'){voiceDialog.close();return;}
-  if(key==='voice-join'){void voice?.join();return;}
-  if(key==='voice-mute'){voice?.mute();return;}
+  if(key==='voice-toggle'){if(voiceState.joined)voice?.mute();else void voice?.join();return;}
   if(key==='voice-audio'){voice?.enableAudio();return;}
   if(key==='voice-leave'){voice?.leave();return;}
   if(key==='commentary'){commentary.toggle(g);render();return;}
@@ -390,5 +403,5 @@ export function mountPhase10(root,{name,exit,invite}){
  world.addEventListener('keydown',onKey);
  setup();
  if(invite&&onlineAPI&&savedSeat(normalizeCode(invite)))openRoom('state',invite);
- return ()=>{disposed=true;voice?.destroy();if(voiceDialog.open)voiceDialog.close();commentary.destroy();remote?.close();clearTimeout(timer);endDrag();world.remove();if(guide.open)guide.close();scenery.destroy();};
+ return ()=>{disposed=true;voice?.destroy();commentary.destroy();remote?.close();clearTimeout(timer);endDrag();world.remove();if(guide.open)guide.close();scenery.destroy();};
 }
